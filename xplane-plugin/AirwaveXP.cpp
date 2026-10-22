@@ -8,6 +8,16 @@
  * XPMP2 picks a CSL model for each aircraft by ICAO type and airline (model matching), shows it on TCAS
  * and on the map, and the plugin reports back to Airwave Pilot which model it chose.
  */
+// Windows: the network headers must come before anything that pulls in <windows.h> (the X-Plane SDK does).
+#if IBM
+  #ifndef WIN32_LEAN_AND_MEAN
+    #define WIN32_LEAN_AND_MEAN
+  #endif
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
+  #undef min
+  #undef max
+#endif
 #include "XPLMPlugin.h"
 #include "XPLMProcessing.h"
 #include "XPLMUtilities.h"
@@ -24,8 +34,6 @@
 #include <cmath>
 
 #if IBM
-  #include <winsock2.h>
-  #include <ws2tcpip.h>
   typedef SOCKET sock_t;
   #define CLOSESOCK closesocket
   static bool sockInvalid(sock_t s) { return s == INVALID_SOCKET; }

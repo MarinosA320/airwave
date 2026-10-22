@@ -20,7 +20,7 @@ jobs:
             arch: lin_x64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Get XPMP2
         shell: bash
         run: git clone --depth 1 --branch v3.7.0 https://github.com/TwinFan/XPMP2 xplane-plugin/lib/XPMP2
