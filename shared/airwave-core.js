@@ -8,7 +8,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const VERSION = '0.6.0';
+  const VERSION = '0.8.0';
 
   // ---------------------------------------------------------------- geo helpers
   const toRad = d => d * Math.PI / 180;
@@ -113,6 +113,45 @@
     return { thr, end, faf, recip };
   }
   function activeRunway(ap) { return ap.runways.find(r => r.active) || ap.runways[0]; }
+  // A runway record describes one strip from its "id" end; "name" lists both ends ("03R/21L").
+  function runwayEnd(ap, id) {
+    for (const r of ap.runways) {
+      if (r.id === id) return r;
+      if ((r.name || '').split('/').includes(id)) return Object.assign({}, r, { id, hdg: norm360(r.hdg + 180), active: false });
+    }
+    return null;
+  }
+  function runwayEndIds(ap) { return [...new Set(ap.runways.flatMap(r => (r.name || r.id).split('/')))]; }
+  // Runways in use for arrivals ('arr') or departures ('dep'): set live by controllers (ap.cfg),
+  // or the map's default (ap.runwayConfig), or the single default runway.
+  function runwaysInUse(ap, kind) {
+    const cfg = ap.cfg || ap.runwayConfig;
+    const ids = cfg && cfg[kind] && cfg[kind].length ? cfg[kind] : [activeRunway(ap).id];
+    const out = ids.map(id => runwayEnd(ap, id)).filter(Boolean);
+    return out.length ? out : [activeRunway(ap)];
+  }
+
+  // ---------------------------------------------------------------- map overlay (edits made in the sector editor)
+  // The overlay replaces whole categories it contains, so an edit never half-merges with the base data.
+  function applyOverlay(base, ov) {
+    const m = JSON.parse(JSON.stringify(base, (k, v) => (k === 'fixIndex' ? undefined : v)));
+    if (!ov) return m;
+    if (Array.isArray(ov.sectors)) m.sectors = ov.sectors;
+    if (Array.isArray(ov.facilities)) m.facilities = ov.facilities;
+    if (ov.fixes) {
+      const byId = new Map(m.fixes.map(f => [f.id, f]));
+      for (const id of ov.fixes.remove || []) byId.delete(id);
+      for (const f of ov.fixes.upsert || []) byId.set(f.id, Object.assign({}, byId.get(f.id), f));
+      m.fixes = [...byId.values()];
+    }
+    if (Array.isArray(ov.airways)) m.airways = ov.airways;
+    for (const [icao, a] of Object.entries(ov.airports || {})) {
+      const ap = m.airports.find(x => x.icao === icao); if (!ap) continue;
+      for (const k of ['procedures', 'waypoints', 'layout', 'runwayConfig']) if (a[k]) ap[k] = a[k];
+    }
+    m.overlayRev = ov.rev || 0;
+    return m;
+  }
 
   // Procedures: { type: 'SID'|'STAR'|'APP', name, runway, approach: 'ILS'|'LOC'|'RNAV'|'LPV'|'VOR'|'NDB'|..., legs: [{fix, alt, altType, spd}] }
   const APP_PREFERENCE = ['ILS', 'LPV', 'RNAV', 'RNP', 'LOC', 'VOR', 'VORDME', 'NDB', 'VISUAL'];
@@ -267,6 +306,7 @@
         case 'assume': return h._assume(this, m);
         case 'release': return h._release(this, m);
         case 'handoff': return h._handoff(this, m);
+        case 'runways': return h._runways(this, m);
         case 'ping': return this.send({ t: 'pong', ts: m.ts });
         default: return this.error('Unknown message type ' + m.t + '.');
       }
@@ -290,6 +330,31 @@
     pilots() { return [...this.sessions.values()].filter(s => s.role === 'pilot' && s.pos); }
     controllers() { return [...this.sessions.values()].filter(s => s.role === 'atc'); }
     airport(icao) { return this.sector.airports.find(a => a.icao === icao); }
+    runwayConfig() {
+      const out = {};
+      for (const ap of this.sector.airports) if (ap.cfg) out[ap.icao] = ap.cfg;
+      return out;
+    }
+    // Swap in an edited map; live runway settings carry over.
+    setMap(map) {
+      const cfg = this.runwayConfig();
+      this.sector = map.fixIndex ? map : registerMap(map);
+      for (const [icao, c] of Object.entries(cfg)) { const ap = this.airport(icao); if (ap) ap.cfg = c; }
+      this.broadcast({ t: 'map', id: this.sector.id, rev: this.sector.overlayRev || 0 });
+    }
+    _runways(s, m) {
+      if (s.role !== 'atc') return s.error('Only controllers can change runways.');
+      const ap = this.airport(String(m.icao || '').toUpperCase());
+      if (!ap) return s.error('Unknown airport ' + m.icao + '.');
+      const ends = runwayEndIds(ap);
+      const pick = v => (Array.isArray(v) ? v : []).map(x => String(x).toUpperCase()).filter(x => ends.includes(x));
+      const arr = pick(m.arr), dep = pick(m.dep);
+      if (!arr.length && !dep.length) return s.error('Choose at least one runway for ' + ap.icao + '.');
+      ap.cfg = { arr: arr.length ? arr : dep, dep: dep.length ? dep : arr };
+      this.broadcast({ t: 'runways', cfg: this.runwayConfig() });
+      this.radio('SERVER', s.freq, ap.icao + ' runways: arrivals ' + ap.cfg.arr.join(', ') + ', departures ' + ap.cfg.dep.join(', ') + '.', true);
+      this.log(s.callsign + ' set ' + ap.icao + ' runways arr ' + ap.cfg.arr + ' dep ' + ap.cfg.dep);
+    }
     // Next free code in 4001-4777 (octal digits only), skipping codes already in use.
     assignSquawk() {
       const used = new Set();
@@ -333,7 +398,7 @@
       }
       s.role = role; s.callsign = cs;
       if (role === 'pilot') { s.type = String(m.aircraft || 'ZZZZ').toUpperCase().slice(0, 4); s.squawk = '2000'; s.freq = this.sector.unicom; }
-      s.send({ t: 'welcome', id: s.id, callsign: cs, role, freq: s.freq, facility: s.facility && s.facility.id, version: VERSION, map: { id: this.sector.id, name: this.sector.name } });
+      s.send({ t: 'welcome', id: s.id, callsign: cs, role, freq: s.freq, facility: s.facility && s.facility.id, version: VERSION, map: { id: this.sector.id, name: this.sector.name, rev: this.sector.overlayRev || 0 }, runways: this.runwayConfig() });
       this.log(cs + ' connected as ' + role + (s.facility ? ' (' + s.facility.id + ' ' + s.freq + ')' : ''));
       if (role === 'atc') this.radio('SERVER', s.freq, s.facility.name + ' is now online on ' + s.freq + '.', true);
     }
@@ -361,7 +426,7 @@
       }
       else if (kind === 'ils') {
         if (!arrAp) return atc.error(t.callsign + ' is not landing at an airport on this map.');
-        const rwy = activeRunway(arrAp);
+        const rwy = (t.rwy && runwayEnd(arrAp, t.rwy)) || runwaysInUse(arrAp, 'arr')[0];
         let proc = null;
         if (m.value) {
           const want = String(m.value).toUpperCase();
@@ -458,7 +523,7 @@
         cs: p.callsign, type: p.type, sq: p.squawk, freq: p.freq, bot: p.isBot,
         lat: +p.pos.lat.toFixed(6), lon: +p.pos.lon.toFixed(6), alt: p.pos.alt, hdg: p.pos.hdg, gs: p.pos.gs, vs: p.pos.vs,
         onGround: p.pos.onGround, pitch: p.pos.pitch, bank: p.pos.bank,
-        fp: p.fp, owner: p.owner, handoff: p.handoff, cleared: p.cleared, proc: p.procName || null
+        fp: p.fp, owner: p.owner, handoff: p.handoff, cleared: p.cleared, proc: p.procName || null, rwy: p.rwy || null
       }));
     }
 
@@ -581,6 +646,7 @@
         case 'ils':
           {
             const proc = m.proc ? proceduresFor(this.ap, 'APP').find(p => p.name === m.proc) : bestApproach(this.ap, this.geo.rwy.id);
+            if (proc && proc.runway && proc.runway !== this.geo.rwy.id && runwayEnd(this.ap, proc.runway)) this.setRunway(proc.runway);
             if (proc) {
               // Join the transition that starts at the next fix on the current route, if there is one.
               const ahead = this.mode === 'nav' ? this.route.slice(this.wp).map(w => w.id) : [];
@@ -613,6 +679,11 @@
     }
 
     tune(freq) { this.freq = freq; this.session.receive({ t: 'tune', freq }); }
+    setRunway(id) {
+      const rwy = runwayEnd(this.ap, id); if (!rwy) return;
+      Object.assign(this.geo, { rwy }, runwayGeometry(rwy));
+      this.session.rwy = id;
+    }
     checkIn() {
       const ownerS = this.session.owner && this.hub.byCallsign(this.session.owner);
       const cov = this.hub.coverage(this);
@@ -774,7 +845,9 @@
       const S = this.hub.sector, P = this.profile;
       const icao = this.pickDest();
       const ap = this.hub.airport(icao);
-      const rwy = activeRunway(ap);
+      const arriving = this.rand() < 0.55;
+      const inUse = runwaysInUse(ap, arriving ? 'arr' : 'dep');
+      const rwy = inUse[Math.floor(this.rand() * inUse.length)];
       const g = runwayGeometry(rwy);
       const app = bestApproach(ap, rwy.id);
       const geo = Object.assign({ rwy, appLegs: approachRoute(S, app, null) }, g);
@@ -783,7 +856,6 @@
       const type = this.pick(types);
       const squawk = Array.from({ length: 4 }, () => Math.floor(this.rand() * 8)).join('');
       const other = this.otherEnd(icao, op);
-      const arriving = this.rand() < 0.55;
       const turboprop = type === 'AT76' || type === 'DH8D';
       const cruise = (turboprop ? 170 + Math.floor(this.rand() * 6) * 10 : type === 'E190' ? 280 : 340 + Math.floor(this.rand() * 4) * 10) * 100;
       const spec = { cs, type, squawk, arriving, geo, cruise, departRange: P.departRange || 75, initialClimb: 6000 };
@@ -838,7 +910,9 @@
       const tooClose = this.pilots.some(q => !q.done && distNm(q, spec) < 8 && Math.abs(q.alt - spec.alt) < 2000);
       if (tooClose) return (attempt || 0) < 12 ? this.spawn(initial, (attempt || 0) + 1) : null;
       this.used.add(cs);
-      this.pilots.push(new SimPilot(this, spec));
+      const pilot = new SimPilot(this, spec);
+      pilot.session.rwy = rwy.id;
+      this.pilots.push(pilot);
     }
 
     tick(dt) {
@@ -859,6 +933,6 @@
   return {
     VERSION, Hub, SimTrafficSource, DEMO_SECTOR, MAPS, registerMap,
     geo: { distNm, bearing, move, offsetNm, pointInPoly, angleDiff, norm360 },
-    runwayGeometry, activeRunway, proceduresFor, bestApproach, resolveLegs, approachRoute, instrPhrase, altPhrase, magVar, magBearing, taxiTarget
+    runwayGeometry, activeRunway, runwayEnd, runwayEndIds, runwaysInUse, applyOverlay, proceduresFor, bestApproach, resolveLegs, approachRoute, instrPhrase, altPhrase, magVar, magBearing, taxiTarget
   };
 });

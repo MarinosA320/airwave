@@ -48,7 +48,8 @@ While anyone is connected it stays awake. Free plans include 750 hours a month, 
 Set the repository variable `AIRWAVE_SERVER_URL` to `wss://<name>.onrender.com/ws` so that page fills in your server. Pages needs a public repo on free GitHub accounts.
 
 **Other hosts:** the `Dockerfile` runs the same server on Fly.io, Railway or any VPS. All settings come from environment variables:
-`PORT`, `AIRWAVE_MAP`, `AIRWAVE_BOTS`, `AIRWAVE_PASSWORD`, `AIRWAVE_ATC_PASSWORD`, `AIRWAVE_MAX_CLIENTS`.
+`PORT`, `AIRWAVE_MAP`, `AIRWAVE_BOTS`, `AIRWAVE_PASSWORD`, `AIRWAVE_ATC_PASSWORD`, `AIRWAVE_MAX_CLIENTS`,
+`AIRWAVE_EDITOR_PASSWORD`, `GITHUB_TOKEN`, `GITHUB_REPO` (see Sector editor below).
 
 ## Running it on your PC
 
@@ -149,6 +150,34 @@ also shows live QDM/QDR to any nearby navaid.
 **Map layers:** coastline (Natural Earth) and terrain. Terrain comes from public elevation tiles that your browser downloads,
 so it works on the server and GitHub Pages scope but not in offline copies.
 
+**Runways in use:** in the **Runways** panel, pick an airport and tick arrival and departure runways (for example arrivals 03L and 03R,
+departures 03R), then **Apply**. Every controller sees the change, STARs, approaches and SIDs on the scope follow it, and simulated traffic
+uses those runways. A protocol message does the same: `{"t":"runways","icao":"LGAV","arr":["03L","03R"],"dep":["03R"]}`.
+
+## Sector editor
+
+Open `https://<your server>/editor` (or **Edit map** in the scope). It edits the live map:
+
+- **Sectors:** drag corners, click an edge to add a corner, right-click a corner to remove it, draw new sectors (corners snap to neighbours), set floor and ceiling.
+- **Positions:** callsigns, names, frequencies, which sectors each area controller covers, and the range of airport positions.
+- **Waypoints and airways:** add, move, rename and delete waypoints; draw airways by clicking waypoints in order.
+- **Procedures:** SIDs, STARs and approaches per airport, with altitude (at / at or above / at or below) and speed constraints, the FAF,
+  approach transitions and the missed approach. Also the default runways the server starts with.
+- **Ground:** taxiways, stands, gates, holding points and aprons. Turn on the OpenStreetMap background to trace them.
+
+Undo with Ctrl+Z. **Save** asks for your name and the editor password (`AIRWAVE_EDITOR_PASSWORD`, or the ATC password if that is unset).
+Saved changes apply at once for everyone connected; controllers' scopes reload the map.
+
+The base map is never changed. Edits are stored as a small file, `data/overlay.json`, applied on top of it.
+Render's free disk is wiped when the server sleeps, so to keep edits the server commits that file to this repo:
+
+1. On GitHub: **Settings > Developer settings > Fine-grained tokens > Generate new token**. Repository access: only this repo.
+   Permissions: **Contents: Read and write**. Copy the token.
+2. On Render: your service > **Environment** > add `GITHUB_TOKEN` with that token. Save; Render restarts the server.
+
+Commits from the editor say `[skip render]`, so saving does not restart the server. If two people edit at once, the second save
+is refused and asks them to reload, so nobody overwrites someone else's work.
+
 **Airport layouts on GitHub:** in the repository's Actions tab, run **Airport layouts** to download taxiways, stands and gates for every
 airport (or a list of ICAO codes). It commits them to `data/layouts`, and Render redeploys with them. It also refreshes monthly.
 
@@ -159,6 +188,7 @@ npm test                         network test (needs the server running)
 node tools/test-pilot.js         Airwave Pilot: smoothing, model matching, X-Plane link, full loop in demo mode (needs the server)
 node tools/test-procedures.js    simulated pilots fly STARs, approaches and SIDs
 node tools/test-layouts.js       OpenStreetMap layout conversion
+node tools/test-editor.js        sector editor saves, map reloads and runway changes (starts its own server)
 ```
 
 ## Protocol

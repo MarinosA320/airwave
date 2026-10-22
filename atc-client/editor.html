@@ -1,0 +1,904 @@
+<title>Airwave Sector Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: map canvas on the left, editing panel with tabs on the right. Same dark radar look as the scope. */
+:root {
+  --bg: #0b1215; --panel: #11191d; --panel-2: #172227; --line: #24333a; --map: #34525d; --map-dim: #1d2d33;
+  --fix: #6f909a; --text: #d6e2e5; --muted: #7d939a; --mine: #7fd4f0; --amber: #f0bf4f; --alert: #ff6a5a; --ok: #72d39d;
+  --land: #121d1f; --coast: #3c5a5a; --star: #6fae8c; --sid: #c79a4a; --app: #7fb7d4;
+  --f-ui: 'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --f-data: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--f-ui); font-size: 15px; overflow: hidden; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 400px; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+header { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+header h1 { margin: 0; font-size: 20px; letter-spacing: .14em; text-transform: uppercase; }
+header h1 span { color: var(--mine); }
+header h1 small { font-size: 12px; color: var(--muted); letter-spacing: .1em; margin-left: 6px; }
+.grow { flex: 1; }
+.state { font-family: var(--f-data); font-size: 12.5px; color: var(--muted); }
+.state b { color: var(--amber); font-weight: 500; }
+.field-inline { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.field-inline input { background: var(--panel-2); border: 1px solid var(--line); padding: 5px 8px; font-family: var(--f-data); font-size: 13px; width: 120px; }
+.btn { background: var(--panel-2); border: 1px solid var(--line); padding: 6px 12px; cursor: pointer; font-weight: 600; letter-spacing: .04em; white-space: nowrap; }
+.btn:hover { border-color: var(--map); }
+.btn[disabled] { opacity: .45; cursor: default; }
+.btn.primary { background: var(--mine); color: #062029; border-color: var(--mine); }
+.btn.danger { color: var(--alert); border-color: color-mix(in srgb, var(--alert) 50%, var(--line)); }
+.btn.on { border-color: var(--amber); color: var(--amber); }
+.map { position: relative; min-width: 0; overflow: hidden; }
+.map canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hint-bar { position: absolute; left: 12px; right: 12px; bottom: 12px; padding: 8px 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); font-size: 13.5px; color: var(--muted); pointer-events: none; }
+.hint-bar b { color: var(--amber); font-weight: 600; }
+.coords { position: absolute; top: 10px; left: 12px; font-family: var(--f-data); font-size: 12px; color: var(--muted); background: color-mix(in srgb, var(--bg) 80%, transparent); padding: 2px 6px; border: 1px solid var(--line); pointer-events: none; }
+.zoom { position: absolute; top: 10px; right: 12px; display: flex; flex-direction: column; gap: 4px; }
+.zoom button { width: 32px; height: 32px; background: var(--panel-2); border: 1px solid var(--line); cursor: pointer; font-family: var(--f-data); }
+.osm-credit { position: absolute; right: 12px; bottom: 56px; font-size: 11px; color: var(--muted); background: color-mix(in srgb, var(--bg) 80%, transparent); padding: 1px 5px; }
+.osm-credit a { color: var(--muted); }
+aside { display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-left: 1px solid var(--line); }
+.tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.tabs button { flex: 1 1 auto; background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 8px; cursor: pointer; color: var(--muted); font-weight: 600; letter-spacing: .05em; }
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--mine); }
+.pane { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+.pane > * { flex-shrink: 0; }
+h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.list { display: grid; gap: 2px; max-height: 240px; overflow-y: auto; border: 1px solid var(--line); background: var(--bg); }
+.list button { display: flex; justify-content: space-between; gap: 8px; background: none; border: 0; border-left: 3px solid transparent; padding: 5px 8px; cursor: pointer; text-align: left; font-family: var(--f-data); font-size: 12.5px; }
+.list button:hover { background: var(--panel-2); }
+.list button.sel { border-left-color: var(--amber); background: var(--panel-2); color: var(--amber); }
+.list button small { color: var(--muted); font-family: var(--f-ui); font-size: 12px; }
+.form { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 8px; align-items: center; }
+.form label { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.form input, .form select, .search { background: var(--panel-2); border: 1px solid var(--line); padding: 6px 8px; font-family: var(--f-data); font-size: 13px; min-width: 0; width: 100%; }
+.form .wide { grid-column: 1 / -1; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+.checks { display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: var(--f-data); font-size: 12.5px; }
+.checks label { display: flex; gap: 5px; align-items: center; cursor: pointer; text-transform: none; letter-spacing: 0; color: var(--text); font-size: 12.5px; }
+.checks input { accent-color: var(--mine); }
+.legs { width: 100%; border-collapse: collapse; table-layout: fixed; font-family: var(--f-data); font-size: 12px; }
+.legs th { text-align: left; font-family: var(--f-ui); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 3px 4px; border-bottom: 1px solid var(--line); }
+.legs td { padding: 2px 3px; border-bottom: 1px solid var(--line); }
+.legs input, .legs select { width: 100%; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); padding: 3px 4px; font-family: var(--f-data); font-size: 12px; }
+.legs .x { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 2px 4px; }
+.legs .x:hover { color: var(--text); }
+.legs tr.sel td { background: var(--panel-2); }
+.note { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.note.err { color: var(--alert); }
+.note.ok { color: var(--ok); }
+.toast { position: fixed; left: 50%; top: 60px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); padding: 10px 16px; font-size: 14px; max-width: min(560px, 90vw); z-index: 5; }
+.toast.err { border-color: var(--alert); }
+.toast.ok { border-color: var(--ok); }
+details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+@media (max-width: 860px) {
+  body { overflow: auto; }
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 58vh auto; height: auto; }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+  .pane { overflow: visible; }
+}
+</style>
+
+<div class="app">
+  <header>
+    <h1>Air<span>wave</span><small>Sector editor</small></h1>
+    <span class="state" id="state">Loading…</span>
+    <span class="grow"></span>
+    <label class="field-inline">Your name<input id="by" maxlength="30" placeholder="e.g. Marinos" autocomplete="nickname"></label>
+    <label class="field-inline" id="pwWrap">Editor password<input id="pw" type="password" autocomplete="current-password"></label>
+    <button class="btn" id="undo" disabled title="Undo (Ctrl+Z)">Undo</button>
+    <button class="btn primary" id="save" disabled>Save</button>
+    <a class="btn" href="/" style="text-decoration:none">Scope</a>
+  </header>
+
+  <div class="map" id="mapBox">
+    <canvas id="cv" aria-label="Map"></canvas>
+    <div class="coords" id="coords">—</div>
+    <div class="zoom">
+      <button id="zin" aria-label="Zoom in">+</button>
+      <button id="zout" aria-label="Zoom out">&minus;</button>
+      <button id="zhome" aria-label="Show whole map">&#9678;</button>
+    </div>
+    <div class="osm-credit" id="osmCredit" hidden>Background © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a></div>
+    <div class="hint-bar" id="hint">Pick a tab on the right to start editing. Drag to pan, scroll to zoom.</div>
+  </div>
+
+  <aside>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="sectors" aria-selected="true">Sectors</button>
+      <button role="tab" data-tab="positions">Positions</button>
+      <button role="tab" data-tab="fixes">Waypoints</button>
+      <button role="tab" data-tab="airways">Airways</button>
+      <button role="tab" data-tab="procs">Procedures</button>
+      <button role="tab" data-tab="ground">Ground</button>
+    </nav>
+    <div class="pane" id="pane"></div>
+  </aside>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="/shared/airwave-core.js"></script>
+<script>
+(function () {
+  'use strict';
+  const A = window.Airwave, G = A.geo;
+  const CFG = window.AIRWAVE_EDITOR || { needsPassword: true, github: false };
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const C = {}; ['--bg', '--map', '--map-dim', '--fix', '--text', '--muted', '--mine', '--amber', '--alert', '--ok', '--land', '--coast', '--star', '--sid', '--app', '--line'].forEach(k => C[k.slice(2)] = css(k));
+  const store = { get(k, d) { try { const v = localStorage.getItem('airwave.editor.' + k); return v == null ? d : v; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('airwave.editor.' + k, v); } catch (e) { /* storage off */ } } };
+  const clone = o => JSON.parse(JSON.stringify(o));
+  const round6 = v => Math.round(v * 1e6) / 1e6;
+
+  // ------------------------------------------------------------ state
+  const st = {
+    base: null, overlay: null, doc: null, touched: new Set(), undo: [],
+    tab: 'sectors', tool: null, draft: null, sel: null, airport: store.get('airport', 'LGAV'),
+    layouts: new Map(), view: { lat: 38.3, lon: 24, scale: 2 }, osm: false
+  };
+  if (!CFG.needsPassword) $('pwWrap').hidden = true;
+  $('by').value = store.get('by', '');
+  $('by').addEventListener('change', () => store.set('by', $('by').value.trim()));
+
+  async function getJson(url) { const r = await fetch(url); if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); }
+  async function load() {
+    const [base, map, overlay] = await Promise.all([getJson('/base-map.json'), getJson('/map.json'), getJson('/overlay.json')]);
+    st.base = base; st.overlay = overlay;
+    st.doc = {
+      sectors: clone(map.sectors), facilities: clone(map.facilities),
+      fixes: new Map(map.fixes.map(f => [f.id, clone(f)])), airways: clone(map.airways || []),
+      coast: map.coast || [], magvar: map.magvar, transitionAlt: map.transitionAlt || 6000,
+      airports: map.airports.map(a => clone(a))
+    };
+    st.touched.clear(); st.undo = []; st.layouts.clear();
+    homeView(); updateState(); renderPane();
+  }
+  const airportOf = icao => st.doc.airports.find(a => a.icao === icao);
+  function fixById(id, ap) {
+    const f = st.doc.fixes.get(id); if (f) return f;
+    const a = ap || airportOf(st.airport);
+    const w = a && (a.waypoints || []).find(x => x.id === id); if (w) return w;
+    for (const o of st.doc.airports) { const w2 = (o.waypoints || []).find(x => x.id === id); if (w2) return w2; }
+    return null;
+  }
+
+  // ------------------------------------------------------------ undo + dirty tracking
+  // Every change goes through edit(), which snapshots the parts that can change and marks them as touched.
+  function snapshot() {
+    return { sectors: clone(st.doc.sectors), facilities: clone(st.doc.facilities), fixes: clone([...st.doc.fixes.values()]), airways: clone(st.doc.airways),
+      airports: clone(st.doc.airports.filter(a => st.touched.has('ap:' + a.icao) || a.icao === st.airport).map(a => ({ icao: a.icao, procedures: a.procedures, waypoints: a.waypoints, layout: a.layout, runwayConfig: a.runwayConfig }))),
+      touched: [...st.touched] };
+  }
+  function restore(s) {
+    st.doc.sectors = s.sectors; st.doc.facilities = s.facilities; st.doc.fixes = new Map(s.fixes.map(f => [f.id, f])); st.doc.airways = s.airways;
+    for (const a of s.airports) Object.assign(airportOf(a.icao), { procedures: a.procedures, waypoints: a.waypoints, layout: a.layout, runwayConfig: a.runwayConfig });
+    st.touched = new Set(s.touched);
+  }
+  function edit(category, fn) {
+    st.undo.push(snapshot()); if (st.undo.length > 60) st.undo.shift();
+    fn(); st.touched.add(category); updateState();
+  }
+  $('undo').onclick = () => { const s = st.undo.pop(); if (!s) return; restore(s); st.draft = null; updateState(); renderPane(); };
+  function updateState() {
+    const n = st.touched.size;
+    $('state').innerHTML = 'Map edit <b>' + (st.overlay ? st.overlay.rev || 0 : 0) + '</b>' + (n ? ' · <b>' + n + ' unsaved change' + (n > 1 ? 's' : '') + '</b>' : ' · no unsaved changes') + (CFG.github ? ' · saves to GitHub' : ' · not saved to GitHub');
+    $('save').disabled = !n; $('undo').disabled = !st.undo.length;
+  }
+  window.addEventListener('beforeunload', e => { if (st.touched.size) { e.preventDefault(); e.returnValue = ''; } });
+
+  // ------------------------------------------------------------ saving
+  function buildOverlay() {
+    const ov = clone(st.overlay && st.overlay.rev ? st.overlay : {});
+    delete ov.rev; delete ov.updated; delete ov.by;
+    ov.version = 1;
+    if (st.touched.has('sectors')) ov.sectors = st.doc.sectors;
+    if (st.touched.has('facilities')) ov.facilities = st.doc.facilities;
+    if (st.touched.has('airways')) ov.airways = st.doc.airways;
+    if (st.touched.has('fixes')) {
+      const baseFix = new Map(st.base.fixes.map(f => [f.id, f]));
+      const upsert = [], remove = [];
+      for (const f of st.doc.fixes.values()) { const b = baseFix.get(f.id); if (!b || b.lat !== f.lat || b.lon !== f.lon || b.kind !== f.kind || b.name !== f.name) upsert.push(f); }
+      for (const id of baseFix.keys()) if (!st.doc.fixes.has(id)) remove.push(id);
+      ov.fixes = { upsert, remove };
+    }
+    for (const t of st.touched) {
+      if (!t.startsWith('ap:')) continue;
+      const a = airportOf(t.slice(3)); ov.airports = ov.airports || {};
+      const o = ov.airports[a.icao] = ov.airports[a.icao] || {};
+      for (const k of ['procedures', 'waypoints', 'layout', 'runwayConfig']) if (a[k]) o[k] = a[k];
+    }
+    return ov;
+  }
+  $('save').onclick = async () => {
+    const by = $('by').value.trim();
+    if (!by) { toast('Enter your name first, so the change history shows who edited.', 'err'); $('by').focus(); return; }
+    $('save').disabled = true; $('save').textContent = 'Saving…';
+    try {
+      const res = await fetch('/editor/save', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password: $('pw').value, by, baseRev: st.overlay ? st.overlay.rev || 0 : 0, overlay: buildOverlay() }) });
+      const r = await res.json();
+      if (!res.ok) { toast(r.error || 'Saving failed.', 'err'); return; }
+      toast('Saved as map edit ' + r.rev + '. ' + (r.github && r.github.saved ? 'Committed to GitHub.' : (r.github && r.github.why) || ''), r.github && r.github.saved ? 'ok' : 'err');
+      st.overlay = await getJson('/overlay.json'); st.touched.clear(); st.undo = [];
+    } catch (e) { toast('Could not reach the server: ' + e.message, 'err'); }
+    finally { $('save').textContent = 'Save'; updateState(); }
+  };
+  let toastTimer;
+  function toast(text, kind) { const t = $('toast'); t.textContent = text; t.className = 'toast ' + (kind || ''); t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 6000); }
+
+  // ------------------------------------------------------------ map view
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  let W = 0, H = 0, DPR = 1;
+  function resize() { const r = $('mapBox').getBoundingClientRect(); DPR = window.devicePixelRatio || 1; W = r.width; H = r.height; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); }
+  new ResizeObserver(resize).observe($('mapBox'));
+  const P = p => { const o = G.offsetNm(st.view, p); return [W / 2 + o.x * st.view.scale, H / 2 - o.y * st.view.scale]; };
+  const PL = q => P({ lat: q[0], lon: q[1] });
+  const unP = (x, y) => ({ lat: st.view.lat + (H / 2 - y) / st.view.scale / 60, lon: st.view.lon + (x - W / 2) / st.view.scale / (60 * Math.cos(st.view.lat * Math.PI / 180)) });
+  const font = (px, w) => (w || 400) + ' ' + px + 'px "IBM Plex Mono", ui-monospace, monospace';
+  function homeView() {
+    const pts = st.doc.sectors.flatMap(s => s.polygon); if (!pts.length || !W) return;
+    const la = pts.map(p => p[0]), lo = pts.map(p => p[1]);
+    st.view.lat = (Math.min(...la) + Math.max(...la)) / 2; st.view.lon = (Math.min(...lo) + Math.max(...lo)) / 2;
+    st.view.scale = Math.min((W - 40) / ((Math.max(...lo) - Math.min(...lo)) * 60 * Math.cos(st.view.lat * Math.PI / 180)), (H - 80) / ((Math.max(...la) - Math.min(...la)) * 60));
+  }
+  function zoomTo(p, scale) { st.view.lat = p.lat; st.view.lon = p.lon; st.view.scale = scale; }
+  const clampScale = s => Math.max(0.5, Math.min(8000, s));
+  function zoomAt(f, x, y) { const b = unP(x, y); st.view.scale = clampScale(st.view.scale * f); const a = unP(x, y); st.view.lat += b.lat - a.lat; st.view.lon += b.lon - a.lon; }
+  $('zin').onclick = () => zoomAt(1.4, W / 2, H / 2); $('zout').onclick = () => zoomAt(1 / 1.4, W / 2, H / 2); $('zhome').onclick = homeView;
+
+  // OpenStreetMap background for tracing ground layouts (optional; tiles load in your browser)
+  const tiles = new Map();
+  function osmTile(z, x, y) {
+    const k = z + '/' + x + '/' + y; let t = tiles.get(k); if (t) return t;
+    t = new Image(); t.src = 'https://tile.openstreetmap.org/' + k + '.png'; tiles.set(k, t);
+    if (tiles.size > 300) tiles.delete(tiles.keys().next().value);
+    return t;
+  }
+  function drawOsm() {
+    const z = Math.max(3, Math.min(19, Math.round(Math.log2(360 * 60 * Math.cos(st.view.lat * Math.PI / 180) * st.view.scale / 256))));
+    const n = 2 ** z, lx = lon => (lon + 180) / 360 * n, ly = lat => (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n;
+    const xl = x => x / n * 360 - 180, yl = y => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
+    const nw = unP(0, 0), se = unP(W, H);
+    const x0 = Math.floor(lx(nw.lon)), x1 = Math.floor(lx(se.lon)), y0 = Math.floor(ly(nw.lat)), y1 = Math.floor(ly(se.lat));
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 48) return;
+    ctx.save(); ctx.globalAlpha = 0.55; ctx.filter = 'invert(1) hue-rotate(180deg) saturate(0.4) brightness(0.8)';
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+      const img = osmTile(z, x, y); if (!img.complete || !img.naturalWidth) continue;
+      const [ax, ay] = P({ lat: yl(y), lon: xl(x) }), [bx, by] = P({ lat: yl(y + 1), lon: xl(x + 1) });
+      ctx.drawImage(img, ax, ay, bx - ax + 0.5, by - ay + 0.5);
+    }
+    ctx.restore();
+  }
+
+  // ------------------------------------------------------------ drawing
+  const SECTOR_COLORS = ['#7fd4f0', '#c79ae0', '#6fae8c', '#e0a86f', '#d07f9b', '#9fb86a', '#6f8fe0', '#e0d06f'];
+  function path(points, close) { ctx.beginPath(); points.forEach((q, i) => { const [x, y] = Array.isArray(q) ? PL(q) : P(q); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); if (close) ctx.closePath(); }
+  function draw() {
+    requestAnimationFrame(draw);
+    if (!st.doc || !W) return;
+    const sc = st.view.scale, d = st.doc;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    if (st.osm) drawOsm();
+    // coast
+    ctx.beginPath(); for (const ring of d.coast) ring.forEach((q, i) => { const [x, y] = PL(q); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    if (!st.osm) { ctx.fillStyle = C.land; ctx.fill('evenodd'); } ctx.strokeStyle = C.coast; ctx.lineWidth = 1; ctx.stroke();
+    // sectors
+    d.sectors.forEach((z, i) => {
+      const sel = st.sel && st.sel.kind === 'sector' && st.sel.i === i;
+      const col = SECTOR_COLORS[i % SECTOR_COLORS.length];
+      path(z.polygon, true);
+      ctx.fillStyle = col; ctx.globalAlpha = sel ? 0.14 : (st.tab === 'sectors' || st.tab === 'positions' ? 0.05 : 0); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = sel ? C.amber : (st.tab === 'sectors' ? col : C.map); ctx.lineWidth = sel ? 2 : 1.2; ctx.stroke();
+      const c = z.polygon.reduce((s, q) => [s[0] + q[0] / z.polygon.length, s[1] + q[1] / z.polygon.length], [0, 0]);
+      const [cx, cy] = PL(c); ctx.fillStyle = sel ? C.amber : C.muted; ctx.font = '700 ' + Math.max(12, Math.min(22, sc * 3)) + 'px "Barlow Semi Condensed", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(z.name || z.id, cx, cy); if (z.floor != null || z.ceiling != null) { ctx.font = font(11); ctx.fillText((z.floor != null ? 'FL' + z.floor : 'GND') + '–' + (z.ceiling != null ? 'FL' + z.ceiling : 'UNL'), cx, cy + 14); }
+      if (sel) for (const q of z.polygon) { const [x, y] = PL(q); ctx.fillStyle = C.bg; ctx.strokeStyle = C.amber; ctx.lineWidth = 1.5; ctx.fillRect(x - 4, y - 4, 8, 8); ctx.strokeRect(x - 4, y - 4, 8, 8); }
+    });
+    ctx.textAlign = 'left';
+    // airways
+    ctx.setLineDash([2, 6]); ctx.lineWidth = 1; ctx.font = font(9.5); ctx.textAlign = 'center';
+    const selAwy = st.sel && st.sel.kind === 'airway' ? st.sel.name : null;
+    for (const [a, b, name] of d.airways) {
+      const fa = fixById(a), fb = fixById(b); if (!fa || !fb) continue;
+      const [x1, y1] = P(fa), [x2, y2] = P(fb);
+      ctx.strokeStyle = name === selAwy ? C.amber : C.map; ctx.lineWidth = name === selAwy ? 2 : 1;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      if (sc > 2.5 && Math.hypot(x2 - x1, y2 - y1) > 70) { ctx.fillStyle = name === selAwy ? C.amber : C.map; ctx.fillText(name, (x1 + x2) / 2, (y1 + y2) / 2 - 3); }
+    }
+    ctx.setLineDash([]); ctx.textAlign = 'left';
+    // airports + runways
+    for (const ap of d.airports) {
+      const [x, y] = P(ap); if (x < -200 || y < -200 || x > W + 200 || y > H + 200) continue;
+      for (const r of ap.runways) { const g = A.runwayGeometry(r); const [x1, y1] = P(g.thr), [x2, y2] = P(g.end); ctx.strokeStyle = C.text; ctx.lineWidth = sc > 60 ? Math.max(2, sc * 0.024) : 2.2; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+      if (sc > 1.2 || ap.scheduled) { ctx.fillStyle = ap.icao === st.airport ? C.amber : C.muted; ctx.font = font(11, 500); ctx.fillText(ap.icao, x + 7, y - 6); }
+    }
+    if (st.tab === 'ground') drawLayout();
+    if (st.tab === 'procs') drawProcs();
+    // fixes
+    const showWpt = st.tab === 'fixes' || st.tab === 'airways' || st.tab === 'procs' || sc > 5;
+    for (const f of d.fixes.values()) {
+      if (f.kind === 'wpt' && !showWpt) continue;
+      const [x, y] = P(f); if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue;
+      const sel = st.sel && st.sel.kind === 'fix' && st.sel.id === f.id;
+      ctx.strokeStyle = sel ? C.amber : C.fix; ctx.fillStyle = sel ? C.amber : C.fix; ctx.lineWidth = sel ? 2 : 1.1;
+      if (f.kind === 'wpt') { ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x + 3.5, y + 3); ctx.lineTo(x - 3.5, y + 3); ctx.closePath(); ctx.stroke(); }
+      else if (f.kind === 'ndb') { ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.stroke(); }
+      else { ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i; i ? ctx.lineTo(x + 5 * Math.cos(a), y + 5 * Math.sin(a)) : ctx.moveTo(x + 5, y); } ctx.closePath(); ctx.stroke(); }
+      if (sel || sc > 3 || (f.kind !== 'wpt' && sc > 1.6)) { ctx.font = font(10.5, sel ? 600 : 400); ctx.fillText(f.id, x + 7, y + 4); }
+    }
+    drawDraft();
+  }
+  function drawProcs() {
+    const ap = airportOf(st.airport); if (!ap) return;
+    const col = { SID: C.sid, STAR: C.star, APP: C.app };
+    (ap.procedures || []).forEach((pr, i) => {
+      const sel = st.sel && st.sel.kind === 'proc' && st.sel.i === i;
+      if (!sel && st.procFilter && st.procFilter !== pr.type) return;
+      const segs = sel ? [[st.sel.seg, procSeg(pr, st.sel.seg)]] : [['legs', pr.legs]];
+      for (const [name, legs] of segs) {
+        const pts = (legs || []).map(l => fixById(l.fix, ap)).filter(Boolean);
+        if (pts.length < 1) continue;
+        ctx.strokeStyle = sel ? C.amber : col[pr.type]; ctx.globalAlpha = sel ? 1 : 0.35; ctx.lineWidth = sel ? 2 : 1;
+        path(pts); ctx.stroke(); ctx.globalAlpha = 1;
+        if (sel) (legs || []).forEach((l, k) => {
+          const f = fixById(l.fix, ap); if (!f) return; const [x, y] = P(f);
+          ctx.fillStyle = C.amber; ctx.fillRect(x - 3, y - 3, 6, 6); ctx.font = font(10.5, 600);
+          ctx.fillText((k + 1) + ' ' + l.fix + (l.alt ? ' ' + ({ above: '+', below: '-' }[l.altType] || '') + l.alt : '') + (l.faf ? ' FAF' : ''), x + 7, y - 6);
+        });
+      }
+    });
+  }
+  function drawLayout() {
+    const ap = airportOf(st.airport); if (!ap) return;
+    const L = groundLayout(ap); if (!L) return;
+    const sc = st.view.scale, sel = st.sel || {};
+    for (const a of L.aprons) { path(a.poly, true); ctx.fillStyle = 'rgba(120,150,160,0.13)'; ctx.fill(); if (sel.kind === 'apron' && L.aprons[sel.i] === a) { ctx.strokeStyle = C.amber; ctx.lineWidth = 2; ctx.stroke(); } }
+    ctx.lineCap = 'round';
+    L.taxiways.forEach((t, i) => {
+      const on = sel.kind === 'taxiway' && sel.i === i;
+      path(t.line); ctx.strokeStyle = on ? C.amber : 'rgba(214,226,229,0.45)'; ctx.lineWidth = Math.max(on ? 3 : 1.5, Math.min(12, sc * 0.012)); ctx.stroke();
+      if (t.ref && sc > 150) { const q = t.line[Math.floor(t.line.length / 2)]; const [x, y] = PL(q); ctx.fillStyle = on ? C.amber : C.amber; ctx.font = font(11, 600); ctx.textAlign = 'center'; ctx.fillText(t.ref, x, y - 5); ctx.textAlign = 'left'; }
+      if (on) for (const q of t.line) { const [x, y] = PL(q); ctx.fillStyle = C.amber; ctx.fillRect(x - 3, y - 3, 6, 6); }
+    });
+    ctx.lineCap = 'butt';
+    const dots = (list, kind, color) => list.forEach((s, i) => {
+      const [x, y] = P(s); const on = sel.kind === kind && sel.i === i;
+      ctx.fillStyle = on ? C.amber : color; ctx.fillRect(x - (on ? 4 : 2.5), y - (on ? 4 : 2.5), on ? 8 : 5, on ? 8 : 5);
+      if (s.ref && (sc > 300 || on)) { ctx.font = font(10, on ? 600 : 400); ctx.fillText(s.ref, x + 6, y + 3); }
+    });
+    dots(L.stands, 'stand', C.mine); dots(L.gates || [], 'gate', C.ok); dots(L.holding, 'holding', C.alert);
+  }
+  function drawDraft() {
+    const d = st.draft; if (!d || !d.points) return;
+    const pts = d.points.concat(d.hover ? [d.hover] : []);
+    if (!pts.length) return;
+    ctx.strokeStyle = C.amber; ctx.lineWidth = 1.6; ctx.setLineDash([6, 4]);
+    path(pts.map(p => p.lat != null ? p : { lat: p[0], lon: p[1] }), d.closed && pts.length > 2); ctx.stroke(); ctx.setLineDash([]);
+    for (const p of d.points) { const [x, y] = P(p); ctx.fillStyle = C.amber; ctx.fillRect(x - 3, y - 3, 6, 6); }
+  }
+
+  // ------------------------------------------------------------ ground layout data
+  function groundLayout(ap) {
+    if (ap.layout) return ap.layout;
+    if (!st.layouts.has(ap.icao)) {
+      st.layouts.set(ap.icao, null);
+      fetch('/layouts/' + ap.icao + '.json').then(r => (r.ok ? r.json() : null)).then(L => { st.layouts.set(ap.icao, L || false); if (st.tab === 'ground') renderPane(); }).catch(() => st.layouts.set(ap.icao, false));
+    }
+    return st.layouts.get(ap.icao) || null;
+  }
+  // The first ground edit copies the downloaded layout (or an empty one) into the airport, which is what gets saved.
+  function editableLayout(ap) {
+    if (!ap.layout) {
+      const L = st.layouts.get(ap.icao);
+      ap.layout = L ? { source: L.source || 'OpenStreetMap contributors (ODbL)', taxiways: L.taxiways || [], aprons: L.aprons || [], stands: L.stands || [], gates: L.gates || [], holding: L.holding || [], terminals: L.terminals || [], runways: L.runways || [] }
+        : { source: 'Airwave editor', taxiways: [], aprons: [], stands: [], gates: [], holding: [], terminals: [], runways: [] };
+    }
+    return ap.layout;
+  }
+
+  // ------------------------------------------------------------ hit testing and snapping
+  function nearestFix(x, y, maxPx, includeAirportWpts) {
+    let best = null, bd = maxPx;
+    const test = f => { const [fx, fy] = P(f); const dd = Math.hypot(fx - x, fy - y); if (dd < bd) { bd = dd; best = f; } };
+    for (const f of st.doc.fixes.values()) test(f);
+    if (includeAirportWpts) { const ap = airportOf(st.airport); for (const w of (ap && ap.waypoints) || []) test(w); }
+    return best;
+  }
+  function nearestSectorVertex(x, y, maxPx, skip) {
+    let best = null, bd = maxPx;
+    st.doc.sectors.forEach((z, i) => z.polygon.forEach((q, k) => { if (skip && skip.i === i && skip.k === k) return; const [px, py] = PL(q); const dd = Math.hypot(px - x, py - y); if (dd < bd) { bd = dd; best = { i, k, q }; } }));
+    return best;
+  }
+  function pointInPoly(p, poly) { return G.pointInPoly(p, poly); }
+  function distToSeg(x, y, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1))); return Math.hypot(x - a[0] - t * dx, y - a[1] - t * dy); }
+
+  // ------------------------------------------------------------ pointer handling (pan, tools, dragging)
+  let drag = null;
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture(e.pointerId);
+    const x = e.offsetX, y = e.offsetY, p = unP(x, y);
+    if (e.button === 2) { onRightClick(x, y); return; }
+    const h = st.draft ? null : grabHandle(x, y);
+    if (h) { drag = { handle: h, x, y, moved: false, started: false }; return; }
+    drag = { pan: true, x, y, start: p, moved: false };
+  });
+  cv.addEventListener('pointermove', e => {
+    const x = e.offsetX, y = e.offsetY, p = unP(x, y);
+    $('coords').textContent = fmtLat(p.lat) + ' ' + fmtLon(p.lon);
+    if (st.draft && st.draft.points) st.draft.hover = snapPoint(x, y, st.draft.snap);
+    if (!drag) return;
+    if (Math.hypot(x - drag.x, y - drag.y) > 3) drag.moved = true;
+    if (drag.pan && drag.moved) { const now = unP(x, y); st.view.lat += drag.start.lat - now.lat; st.view.lon += drag.start.lon - now.lon; }
+    if (drag.handle && drag.moved) {
+      if (!drag.started) { drag.started = true; st.undo.push(snapshot()); if (st.undo.length > 60) st.undo.shift(); }
+      moveHandle(drag.handle, snapPoint(x, y, drag.handle.snap, drag.handle)); st.touched.add(drag.handle.category); updateState();
+    }
+  });
+  cv.addEventListener('pointerup', e => {
+    const x = e.offsetX, y = e.offsetY;
+    if (drag && !drag.moved && e.button === 0) onClick(x, y, e);
+    if (drag && drag.handle && drag.started) renderPane();
+    drag = null;
+  });
+  cv.addEventListener('dblclick', e => { if (st.draft) { e.preventDefault(); finishDraft(); } });
+  cv.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.offsetX, e.offsetY); }, { passive: false });
+  document.addEventListener('keydown', e => {
+    const tag = document.activeElement && document.activeElement.tagName;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && tag !== 'INPUT') { e.preventDefault(); $('undo').click(); return; }
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (e.key === 'Escape') { st.draft = null; setHint(); renderPane(); }
+    if (e.key === 'Enter' && st.draft) finishDraft();
+    if ((e.key === 'Delete' || e.key === 'Backspace') && st.sel) { e.preventDefault(); deleteSelected(); }
+  });
+  const fmtLat = v => (v >= 0 ? 'N' : 'S') + Math.abs(v).toFixed(4); const fmtLon = v => (v >= 0 ? 'E' : 'W') + Math.abs(v).toFixed(4);
+
+  // Snap a point to a fix (procedures, airways, waypoints) or to another sector's corner (sectors).
+  function snapPoint(x, y, mode, skip) {
+    if (mode === 'sector') { const v = nearestSectorVertex(x, y, 10, skip && skip.k != null ? skip : null); if (v) return { lat: v.q[0], lon: v.q[1], snapped: true }; }
+    if (mode === 'fix') { const f = nearestFix(x, y, 12, true); if (f) return { lat: f.lat, lon: f.lon, fix: f.id, snapped: true }; }
+    const p = unP(x, y); return { lat: round6(p.lat), lon: round6(p.lon) };
+  }
+  // Handles that can be dragged in the current tab.
+  function grabHandle(x, y) {
+    const sel = st.sel;
+    if (st.tab === 'sectors' && sel && sel.kind === 'sector') {
+      const z = st.doc.sectors[sel.i];
+      for (let k = 0; k < z.polygon.length; k++) { const [px, py] = PL(z.polygon[k]); if (Math.hypot(px - x, py - y) < 8) return { kind: 'sectorVertex', i: sel.i, k, snap: 'sector', category: 'sectors' }; }
+    }
+    if (st.tab === 'fixes') {
+      const f = nearestFix(x, y, 8); if (f) { st.sel = { kind: 'fix', id: f.id }; renderPane(); return { kind: 'fix', id: f.id, category: 'fixes' }; }
+    }
+    if (st.tab === 'ground') {
+      const ap = airportOf(st.airport), L = ap && groundLayout(ap); if (!L) return null;
+      for (const kind of ['stand', 'gate', 'holding']) {
+        const list = kind === 'stand' ? L.stands : kind === 'gate' ? (L.gates || []) : L.holding;
+        for (let i = 0; i < list.length; i++) { const [px, py] = P(list[i]); if (Math.hypot(px - x, py - y) < 7) { st.sel = { kind, i }; renderPane(); return { kind: 'groundPoint', list: kind, i, category: 'ap:' + ap.icao }; } }
+      }
+      if (sel && sel.kind === 'taxiway') { const t = L.taxiways[sel.i]; if (t) for (let k = 0; k < t.line.length; k++) { const [px, py] = PL(t.line[k]); if (Math.hypot(px - x, py - y) < 7) return { kind: 'taxiVertex', i: sel.i, k, category: 'ap:' + ap.icao }; } }
+    }
+    return null;
+  }
+  function moveHandle(h, p) {
+    if (h.kind === 'sectorVertex') st.doc.sectors[h.i].polygon[h.k] = [round6(p.lat), round6(p.lon)];
+    if (h.kind === 'fix') { const f = st.doc.fixes.get(h.id); f.lat = round6(p.lat); f.lon = round6(p.lon); }
+    if (h.kind === 'groundPoint' || h.kind === 'taxiVertex') {
+      const ap = airportOf(st.airport), L = editableLayout(ap);
+      if (h.kind === 'taxiVertex') L.taxiways[h.i].line[h.k] = [round6(p.lat), round6(p.lon)];
+      else { const list = h.list === 'stand' ? L.stands : h.list === 'gate' ? L.gates : L.holding; Object.assign(list[h.i], { lat: round6(p.lat), lon: round6(p.lon) }); }
+    }
+  }
+
+  function onClick(x, y, e) {
+    const p = unP(x, y);
+    if (st.draft) { addDraftPoint(x, y); return; }
+    if (st.tab === 'sectors') {
+      const z = st.sel && st.sel.kind === 'sector' ? st.doc.sectors[st.sel.i] : null;
+      if (z) { // click on an edge of the selected sector inserts a corner
+        for (let k = 0; k < z.polygon.length; k++) {
+          const a = PL(z.polygon[k]), b = PL(z.polygon[(k + 1) % z.polygon.length]);
+          if (distToSeg(x, y, a, b) < 6) { edit('sectors', () => z.polygon.splice(k + 1, 0, [round6(p.lat), round6(p.lon)])); return; }
+        }
+      }
+      const hits = st.doc.sectors.map((s, i) => i).filter(i => pointInPoly(p, st.doc.sectors[i].polygon));
+      st.sel = hits.length ? { kind: 'sector', i: hits[(hits.indexOf(st.sel && st.sel.i) + 1) % hits.length] } : null; renderPane(); return;
+    }
+    if (st.tab === 'fixes') { const f = nearestFix(x, y, 10); st.sel = f ? { kind: 'fix', id: f.id } : null; renderPane(); return; }
+    if (st.tab === 'airways') {
+      let best = null, bd = 6;
+      for (const [a, b, name] of st.doc.airways) { const fa = fixById(a), fb = fixById(b); if (!fa || !fb) continue; const dd = distToSeg(x, y, P(fa), P(fb)); if (dd < bd) { bd = dd; best = name; } }
+      st.sel = best ? { kind: 'airway', name: best } : null; renderPane(); return;
+    }
+    if (st.tab === 'ground') {
+      const ap = airportOf(st.airport), L = ap && groundLayout(ap); if (!L) return;
+      let best = null, bd = 6;
+      L.taxiways.forEach((t, i) => { for (let k = 0; k + 1 < t.line.length; k++) { const dd = distToSeg(x, y, PL(t.line[k]), PL(t.line[k + 1])); if (dd < bd) { bd = dd; best = { kind: 'taxiway', i }; } } });
+      if (!best) L.aprons.forEach((a, i) => { if (pointInPoly(p, a.poly)) best = { kind: 'apron', i }; });
+      st.sel = best; renderPane();
+    }
+    if (st.tab === 'procs' && st.sel && st.sel.kind === 'proc') { // click a fix to append it to the selected segment
+      const f = nearestFix(x, y, 12, true); if (!f) return;
+      appendLeg(f.id);
+    }
+  }
+  function onRightClick(x, y) {
+    if (st.draft && st.draft.points && st.draft.points.length) { st.draft.points.pop(); return; }
+    if (st.tab === 'sectors' && st.sel && st.sel.kind === 'sector') {
+      const z = st.doc.sectors[st.sel.i];
+      const k = z.polygon.findIndex(q => { const [px, py] = PL(q); return Math.hypot(px - x, py - y) < 8; });
+      if (k >= 0 && z.polygon.length > 3) edit('sectors', () => z.polygon.splice(k, 1));
+    }
+    if (st.tab === 'ground' && st.sel && st.sel.kind === 'taxiway') {
+      const ap = airportOf(st.airport), L = editableLayout(ap), t = L.taxiways[st.sel.i];
+      const k = t.line.findIndex(q => { const [px, py] = PL(q); return Math.hypot(px - x, py - y) < 7; });
+      if (k >= 0 && t.line.length > 2) edit('ap:' + ap.icao, () => t.line.splice(k, 1));
+    }
+  }
+
+  // ------------------------------------------------------------ drawing tools (new sector, taxiway, apron, airway, points)
+  function startDraft(d) { st.draft = Object.assign({ points: [] }, d); setHint(); renderPane(); }
+  function addDraftPoint(x, y) {
+    const d = st.draft, p = snapPoint(x, y, d.snap);
+    if (d.single) { finishDraft(p); return; }
+    if (d.snap === 'fix' && !p.fix) { toast('Click on a waypoint or navaid to add it to the airway.', 'err'); return; }
+    d.points.push(p);
+  }
+  function finishDraft(single) {
+    const d = st.draft; if (!d) return;
+    const pts = d.points;
+    if (d.type === 'sector') {
+      if (pts.length < 3) return toast('A sector needs at least 3 corners.', 'err');
+      edit('sectors', () => { st.doc.sectors.push({ id: d.id, name: d.name, floor: d.floor, ceiling: d.ceiling, polygon: pts.map(q => [round6(q.lat), round6(q.lon)]) }); st.sel = { kind: 'sector', i: st.doc.sectors.length - 1 }; });
+    }
+    if (d.type === 'airway') {
+      if (pts.length < 2) return toast('An airway needs at least 2 waypoints.', 'err');
+      edit('airways', () => { for (let i = 0; i + 1 < pts.length; i++) st.doc.airways.push([pts[i].fix, pts[i + 1].fix, d.name]); st.sel = { kind: 'airway', name: d.name }; });
+    }
+    if (d.type === 'fix' && single) {
+      if (st.doc.fixes.has(d.id)) return toast(d.id + ' already exists. Choose another name.', 'err');
+      edit('fixes', () => { st.doc.fixes.set(d.id, { id: d.id, kind: 'wpt', lat: round6(single.lat), lon: round6(single.lon) }); st.sel = { kind: 'fix', id: d.id }; });
+    }
+    if (d.type === 'procWpt' && single) {
+      const ap = airportOf(st.airport);
+      if (fixById(d.id, ap)) return toast(d.id + ' already exists. Choose another name.', 'err');
+      edit('ap:' + ap.icao, () => { ap.waypoints = (ap.waypoints || []).concat([{ id: d.id, lat: round6(single.lat), lon: round6(single.lon) }]); });
+      if (st.sel && st.sel.kind === 'proc') appendLeg(d.id);
+    }
+    const ap = airportOf(st.airport);
+    if (d.type === 'taxiway') {
+      if (pts.length < 2) return toast('A taxiway needs at least 2 points.', 'err');
+      edit('ap:' + ap.icao, () => { const L = editableLayout(ap); L.taxiways.push({ ref: d.ref, kind: 'taxiway', line: pts.map(q => [round6(q.lat), round6(q.lon)]) }); st.sel = { kind: 'taxiway', i: L.taxiways.length - 1 }; });
+    }
+    if (d.type === 'apron') {
+      if (pts.length < 3) return toast('An apron needs at least 3 corners.', 'err');
+      edit('ap:' + ap.icao, () => { const L = editableLayout(ap); L.aprons.push({ ref: d.ref || '', poly: pts.concat([pts[0]]).map(q => [round6(q.lat), round6(q.lon)]) }); st.sel = { kind: 'apron', i: L.aprons.length - 1 }; });
+    }
+    if ((d.type === 'stand' || d.type === 'holding' || d.type === 'gate') && single) {
+      edit('ap:' + ap.icao, () => { const L = editableLayout(ap); const list = d.type === 'stand' ? L.stands : d.type === 'gate' ? (L.gates = L.gates || []) : L.holding; list.push({ ref: d.ref, lat: round6(single.lat), lon: round6(single.lon) }); st.sel = { kind: d.type, i: list.length - 1 }; });
+      // keep placing: bump a trailing number in the name (204 -> 205)
+      const m = /^(.*?)(\d+)$/.exec(d.ref || ''); st.draft = m ? Object.assign({}, d, { ref: m[1] + String(Number(m[2]) + 1).padStart(m[2].length, '0') }) : null; setHint(); renderPane(); return;
+    }
+    st.draft = null; setHint(); renderPane();
+  }
+  function setHint() {
+    const d = st.draft, h = $('hint');
+    const T = {
+      sector: 'Click to add corners of <b>' + esc(d && d.id) + '</b>. Corners snap to neighbouring sectors. Right-click removes the last corner, Enter or double-click finishes, Esc cancels.',
+      airway: 'Click waypoints or navaids in order for <b>' + esc(d && d.name) + '</b>. Enter finishes, right-click removes the last one, Esc cancels.',
+      fix: 'Click the map where <b>' + esc(d && d.id) + '</b> goes. Esc cancels.',
+      procWpt: 'Click the map where <b>' + esc(d && d.id) + '</b> goes; it is added to the procedure. Esc cancels.',
+      taxiway: 'Click along taxiway <b>' + esc(d && d.ref) + '</b>. Enter finishes, right-click removes the last point, Esc cancels.',
+      apron: 'Click the corners of the apron. Enter finishes, Esc cancels.',
+      stand: 'Click to place stand <b>' + esc(d && d.ref) + '</b>. The number counts up so you can keep clicking. Esc stops.',
+      gate: 'Click to place gate <b>' + esc(d && d.ref) + '</b>. Esc stops.',
+      holding: 'Click to place holding point <b>' + esc(d && d.ref) + '</b>. Esc stops.'
+    };
+    if (d) { h.innerHTML = T[d.type] || ''; return; }
+    h.innerHTML = {
+      sectors: 'Click a sector to select it. Drag its corners to move them, click an edge to add a corner, right-click a corner to remove it.',
+      positions: 'Edit ATC positions and frequencies, and which sectors each area position covers.',
+      fixes: 'Click a waypoint to select it, drag it to move. Use "New waypoint" to add one.',
+      airways: 'Click an airway to select it. Use "New airway" and click waypoints in order.',
+      procs: 'Select a procedure, then click waypoints on the map to add legs. Use "New waypoint" for points that are not on the map yet.',
+      ground: 'Zoom to the airport. Draw taxiways, place stands, gates and holding points. Drag points to move them.'
+    }[st.tab];
+  }
+  function deleteSelected() {
+    const s = st.sel; if (!s) return;
+    if (s.kind === 'sector') edit('sectors', () => st.doc.sectors.splice(s.i, 1));
+    if (s.kind === 'fix') {
+      const used = st.doc.airways.some(w => w[0] === s.id || w[1] === s.id);
+      if (used) return toast(s.id + ' is on an airway. Remove it from the airway first.', 'err');
+      edit('fixes', () => st.doc.fixes.delete(s.id));
+    }
+    if (s.kind === 'airway') edit('airways', () => { st.doc.airways = st.doc.airways.filter(w => w[2] !== s.name); });
+    if (s.kind === 'proc') { const ap = airportOf(st.airport); edit('ap:' + ap.icao, () => ap.procedures.splice(s.i, 1)); }
+    if (['taxiway', 'apron', 'stand', 'gate', 'holding'].includes(s.kind)) {
+      const ap = airportOf(st.airport); edit('ap:' + ap.icao, () => { const L = editableLayout(ap); ({ taxiway: L.taxiways, apron: L.aprons, stand: L.stands, gate: L.gates, holding: L.holding })[s.kind].splice(s.i, 1); });
+    }
+    st.sel = null; renderPane();
+  }
+
+  // ------------------------------------------------------------ side panel
+  document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+    st.tab = b.dataset.tab; st.draft = null; st.sel = null;
+    document.querySelectorAll('[data-tab]').forEach(x => x.setAttribute('aria-selected', x === b));
+    if (st.tab === 'ground') { const ap = airportOf(st.airport); if (ap && st.view.scale < 100) zoomTo(ap, 300); }
+    renderPane();
+  });
+  const opt = (v, label, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(label == null ? v : label) + '</option>';
+  function airportSelect() {
+    return '<div class="form"><label for="apSel">Airport</label><select id="apSel">' +
+      st.doc.airports.filter(a => a.scheduled !== false || (a.procedures || []).length).map(a => opt(a.icao, a.icao + ' ' + (a.city || a.name), a.icao === st.airport)).join('') + '</select></div>';
+  }
+  function renderPane() {
+    if (!st.doc) return;
+    setHint();
+    const html = { sectors: paneSectors, positions: panePositions, fixes: paneFixes, airways: paneAirways, procs: paneProcs, ground: paneGround }[st.tab]();
+    $('pane').innerHTML = html;
+    const ap = $('apSel'); if (ap) ap.onchange = () => { st.airport = ap.value; store.set('airport', ap.value); st.sel = null; const a = airportOf(ap.value); if (st.tab === 'ground') zoomTo(a, 300); else if (st.view.scale < 3) zoomTo(a, 5); renderPane(); };
+    bindPane();
+    const selItem = $('pane').querySelector('.list .sel'); if (selItem) selItem.scrollIntoView({ block: 'nearest' });
+  }
+
+  // Sectors
+  function paneSectors() {
+    const s = st.sel && st.sel.kind === 'sector' ? st.doc.sectors[st.sel.i] : null;
+    const covers = id => st.doc.facilities.filter(f => (f.covers || []).includes(id)).map(f => f.id).join(', ');
+    return '<h2><span>Sectors</span><button class="btn" data-a="newSector">New sector</button></h2>' +
+      (st.draft && st.draft.type === 'sector' ? '<p class="note">Drawing <b>' + esc(st.draft.id) + '</b>: ' + st.draft.points.length + ' corners. <button class="btn" data-a="finish">Finish</button> <button class="btn" data-a="cancel">Cancel</button></p>' : '') +
+      '<div class="list">' + st.doc.sectors.map((z, i) => '<button data-sel-sector="' + i + '" class="' + (s === z ? 'sel' : '') + '"><span>' + esc(z.id) + ' ' + esc(z.name || '') + '</span><small>' + esc(covers(z.id) || 'no position') + '</small></button>').join('') + '</div>' +
+      (s ? '<h2>Selected sector</h2><div class="form">' +
+        '<label for="sId">ID</label><input id="sId" value="' + esc(s.id) + '" maxlength="12">' +
+        '<label for="sName">Name</label><input id="sName" value="' + esc(s.name || '') + '" maxlength="40">' +
+        '<label for="sFloor">Floor (FL)</label><input id="sFloor" inputmode="numeric" placeholder="ground" value="' + esc(s.floor == null ? '' : s.floor) + '">' +
+        '<label for="sCeil">Ceiling (FL)</label><input id="sCeil" inputmode="numeric" placeholder="unlimited" value="' + esc(s.ceiling == null ? '' : s.ceiling) + '">' +
+        '<span></span><div class="row"><button class="btn" data-a="applySector">Apply</button><button class="btn danger" data-a="delete">Delete sector</button></div></div>' +
+        '<p class="note">' + s.polygon.length + ' corners. Covered by: ' + esc(covers(s.id) || 'nobody yet (set it in Positions)') + '.</p>' : '<p class="note">Click a sector on the map or in the list.</p>');
+  }
+  // Positions
+  function panePositions() {
+    const f = st.sel && st.sel.kind === 'facility' ? st.doc.facilities[st.sel.i] : null;
+    const area = st.doc.facilities.map((x, i) => [x, i]).filter(([x]) => x.kind === 'CTR');
+    const apPos = st.doc.facilities.map((x, i) => [x, i]).filter(([x]) => x.kind !== 'CTR' && x.airport === st.airport);
+    const item = ([x, i]) => '<button data-sel-fac="' + i + '" class="' + (f === x ? 'sel' : '') + '"><span>' + esc(x.id) + '</span><small>' + esc(x.freq + ' ' + x.name) + '</small></button>';
+    return '<h2><span>Area control</span><button class="btn" data-a="newCtr">New position</button></h2><div class="list">' + area.map(item).join('') + '</div>' +
+      airportSelect() + '<h2><span>' + esc(st.airport) + ' positions</span><button class="btn" data-a="newApPos">New position</button></h2><div class="list">' + (apPos.map(item).join('') || '<p class="note" style="padding:6px">None yet.</p>') + '</div>' +
+      (f ? '<h2>Selected position</h2><div class="form">' +
+        '<label for="fId">Callsign</label><input id="fId" value="' + esc(f.id) + '" maxlength="12">' +
+        '<label for="fName">Name</label><input id="fName" value="' + esc(f.name) + '" maxlength="40">' +
+        '<label for="fFreq">Frequency</label><input id="fFreq" value="' + esc(f.freq) + '" maxlength="7" placeholder="132.225">' +
+        '<label for="fKind">Type</label><select id="fKind">' + ['CTR', 'APP', 'DEP', 'F_APP', 'TWR', 'GND', 'DEL'].map(k => opt(k, k, f.kind === k)).join('') + '</select>' +
+        (f.kind === 'CTR' ? '<label>Covers</label><div class="checks">' + st.doc.sectors.map(z => '<label><input type="checkbox" data-cover="' + esc(z.id) + '"' + ((f.covers || []).includes(z.id) ? ' checked' : '') + '> ' + esc(z.id) + '</label>').join('') + '</div>'
+          : '<label for="fRad">Radius (NM)</label><input id="fRad" inputmode="numeric" value="' + esc(f.area ? f.area.radius : 10) + '"><label for="fCeil">Ceiling (ft)</label><input id="fCeil" inputmode="numeric" value="' + esc(f.area ? f.area.ceiling : 4000) + '">') +
+        '<span></span><div class="row"><button class="btn" data-a="applyFac">Apply</button><button class="btn danger" data-a="deleteFac">Delete position</button></div></div>' : '<p class="note">Select a position to edit its frequency and coverage.</p>');
+  }
+  // Waypoints
+  function paneFixes() {
+    const f = st.sel && st.sel.kind === 'fix' ? st.doc.fixes.get(st.sel.id) : null;
+    return '<h2><span>Waypoints and navaids</span><button class="btn" data-a="newFix">New waypoint</button></h2>' +
+      '<input class="search" id="fixSearch" placeholder="Find, e.g. KEA or ROPOX" spellcheck="false" list="fixNames"><datalist id="fixNames">' + [...st.doc.fixes.keys()].sort().map(id => '<option value="' + esc(id) + '"></option>').join('') + '</datalist>' +
+      (f ? '<h2>' + esc(f.id) + '</h2><div class="form">' +
+        '<label for="xId">Name</label><input id="xId" value="' + esc(f.id) + '" maxlength="7">' +
+        '<label for="xKind">Type</label><select id="xKind">' + [['wpt', 'Waypoint'], ['vor', 'VOR / VOR-DME'], ['ndb', 'NDB'], ['tacan', 'TACAN']].map(([k, l]) => opt(k, l, f.kind === k)).join('') + '</select>' +
+        '<label for="xLat">Latitude</label><input id="xLat" value="' + esc(f.lat) + '">' +
+        '<label for="xLon">Longitude</label><input id="xLon" value="' + esc(f.lon) + '">' +
+        '<span></span><div class="row"><button class="btn" data-a="applyFix">Apply</button><button class="btn danger" data-a="delete">Delete</button></div></div>' +
+        '<p class="note">Or drag it on the map.</p>' : '<p class="note">Click a waypoint on the map, or search for one.</p>');
+  }
+  // Airways
+  function paneAirways() {
+    const names = [...new Set(st.doc.airways.map(w => w[2]))].sort();
+    const sel = st.sel && st.sel.kind === 'airway' ? st.sel.name : null;
+    let seq = '';
+    if (sel) { const segs = st.doc.airways.filter(w => w[2] === sel); seq = segs.length ? [segs[0][0]].concat(segs.map(s => s[1])).join(' → ') : ''; }
+    return '<h2><span>Airways</span><button class="btn" data-a="newAirway">New airway</button></h2>' +
+      (st.draft && st.draft.type === 'airway' ? '<p class="note">Building <b>' + esc(st.draft.name) + '</b>: ' + esc(st.draft.points.map(p => p.fix).join(' → ') || 'click the first waypoint') + '<br><button class="btn" data-a="finish">Finish</button> <button class="btn" data-a="cancel">Cancel</button></p>' : '') +
+      '<div class="list">' + names.map(n => '<button data-sel-awy="' + esc(n) + '" class="' + (n === sel ? 'sel' : '') + '"><span>' + esc(n) + '</span><small>' + st.doc.airways.filter(w => w[2] === n).length + ' segments</small></button>').join('') + '</div>' +
+      (sel ? '<h2>' + esc(sel) + '</h2><p class="note">' + esc(seq) + '</p><div class="form"><label for="aName">Rename</label><input id="aName" value="' + esc(sel) + '" maxlength="8"><span></span><div class="row"><button class="btn" data-a="renameAwy">Rename</button><button class="btn" data-a="trimAwy">Remove last segment</button><button class="btn danger" data-a="delete">Delete airway</button></div></div>' : '');
+  }
+  // Procedures
+  function procSeg(pr, seg) {
+    if (seg === 'legs') return pr.legs;
+    if (seg === 'missed') return pr.missed || (pr.missed = []);
+    if (seg.startsWith('tr:')) return (pr.transitions = pr.transitions || {})[seg.slice(3)];
+    return pr.legs;
+  }
+  function paneProcs() {
+    const ap = airportOf(st.airport); const procs = (ap && ap.procedures) || [];
+    const s = st.sel && st.sel.kind === 'proc' ? st.sel : null; const pr = s ? procs[s.i] : null;
+    const ends = ap ? A.runwayEndIds(ap) : [];
+    const rc = ap ? { arr: A.runwaysInUse(ap, 'arr').map(r => r.id), dep: A.runwaysInUse(ap, 'dep').map(r => r.id) } : {};
+    const filter = st.procFilter || '';
+    let html = airportSelect() +
+      '<h2><span>Default runways</span></h2><div class="checks">' + ends.map(id => '<label><input type="checkbox" data-rc="arr" value="' + id + '"' + ((rc.arr || []).includes(id) ? ' checked' : '') + '> ' + id + ' ARR</label><label><input type="checkbox" data-rc="dep" value="' + id + '"' + ((rc.dep || []).includes(id) ? ' checked' : '') + '> ' + id + ' DEP</label>').join('') + '</div>' +
+      '<p class="note">Used when the server starts. Controllers can change runways live in the scope.</p>' +
+      '<h2><span>Procedures</span><span class="row"><select id="procFilter" class="btn">' + opt('', 'All', !filter) + ['SID', 'STAR', 'APP'].map(t => opt(t, t, filter === t)).join('') + '</select><button class="btn" data-a="newProc">New</button></span></h2>' +
+      '<div class="list">' + procs.map((p, i) => [p, i]).filter(([p]) => !filter || p.type === filter).map(([p, i]) => '<button data-sel-proc="' + i + '" class="' + (pr === p ? 'sel' : '') + '"><span>' + esc(p.type + ' ' + p.name) + '</span><small>RWY ' + esc(p.runway || 'ALL') + ' · ' + (p.legs || []).length + ' legs</small></button>').join('') + '</div>';
+    if (!pr) return html + '<p class="note">Select a procedure, or make a new one.</p>';
+    const legs = procSeg(pr, s.seg) || [];
+    const segs = [['legs', pr.type === 'APP' ? 'Final approach' : 'Route']].concat(pr.type === 'APP' ? Object.keys(pr.transitions || {}).map(k => ['tr:' + k, 'From ' + k]).concat([['missed', 'Missed approach']]) : []);
+    html += '<h2>' + esc(pr.type + ' ' + pr.name) + '</h2><div class="form">' +
+      '<label for="pName">Name</label><input id="pName" value="' + esc(pr.name) + '" maxlength="24">' +
+      '<label for="pRwy">Runway</label><select id="pRwy">' + opt('ALL', 'All runways', pr.runway === 'ALL') + ends.map(id => opt(id, id, pr.runway === id)).join('') + '</select>' +
+      (pr.type === 'APP' ? '<label for="pKind">Approach</label><select id="pKind">' + ['ILS', 'LOC', 'RNP', 'RNAV', 'LPV', 'VOR', 'VORDME', 'NDB', 'VISUAL'].map(k => opt(k, k, (pr.approach || '').toUpperCase() === k)).join('') + '</select>' : '') +
+      '<span></span><div class="row"><button class="btn" data-a="applyProc">Apply</button><button class="btn danger" data-a="delete">Delete procedure</button></div></div>' +
+      '<div class="row">' + segs.map(([k, l]) => '<button class="btn' + (s.seg === k ? ' on' : '') + '" data-seg="' + esc(k) + '">' + esc(l) + '</button>').join('') +
+      (pr.type === 'APP' ? '<button class="btn" data-a="newTransition">+ Transition</button>' : '') + '</div>' +
+      '<table class="legs"><colgroup><col style="width:22px"><col><col style="width:70px"><col style="width:48px"><col style="width:50px">' + (pr.type === 'APP' && s.seg === 'legs' ? '<col style="width:34px">' : '') + '<col style="width:44px"></colgroup><thead><tr><th>#</th><th>Fix</th><th>Alt</th><th></th><th>Kt</th>' + (pr.type === 'APP' && s.seg === 'legs' ? '<th>FAF</th>' : '') + '<th></th></tr></thead><tbody>' +
+      legs.map((l, k) => '<tr data-leg="' + k + '"><td>' + (k + 1) + '</td><td><input data-f="fix" value="' + esc(l.fix) + '" list="legFixes" maxlength="7"></td>' +
+        '<td><input data-f="alt" inputmode="numeric" value="' + esc(l.alt || '') + '" placeholder="ft"></td>' +
+        '<td><select data-f="altType">' + [['at', '='], ['above', '+'], ['below', '−']].map(([v, t]) => opt(v, t, (l.altType || 'at') === v)).join('') + '</select></td>' +
+        '<td><input data-f="spd" inputmode="numeric" value="' + esc(l.spd || '') + '"></td>' +
+        (pr.type === 'APP' && s.seg === 'legs' ? '<td><input type="checkbox" data-f="faf"' + (l.faf ? ' checked' : '') + '></td>' : '') +
+        '<td><button class="x" data-up="' + k + '" title="Move up">↑</button><button class="x" data-del="' + k + '" title="Remove">✕</button></td></tr>').join('') + '</tbody></table>' +
+      '<datalist id="legFixes">' + [...st.doc.fixes.keys()].concat(((ap && ap.waypoints) || []).map(w => w.id)).sort().map(id => '<option value="' + esc(id) + '"></option>').join('') + '</datalist>' +
+      '<div class="row"><button class="btn" data-a="procWpt">New waypoint here</button>' + (s.seg.startsWith('tr:') ? '<button class="btn danger" data-a="delTransition">Delete transition</button>' : '') + '</div>' +
+      '<p class="note">Click waypoints on the map to add them to the end. Altitudes in feet (e.g. 6000, or 24000 for FL240).</p>';
+    return html;
+  }
+  // Ground
+  function paneGround() {
+    const ap = airportOf(st.airport); const L = ap && groundLayout(ap);
+    const s = st.sel || {};
+    const loading = ap && !st.layouts.has(ap.icao) && !ap.layout;
+    let html = airportSelect() + '<div class="row"><button class="btn" data-a="zoomAp">Zoom to airport</button><label class="checks"><label><input type="checkbox" id="osmBg"' + (st.osm ? ' checked' : '') + '> OpenStreetMap background</label></label></div>' +
+      '<p class="note">' + (L ? 'Layout: ' + L.taxiways.length + ' taxiways, ' + L.stands.length + ' stands, ' + (L.gates || []).length + ' gates, ' + L.holding.length + ' holding points. ' + (ap.layout ? 'Edited here.' : 'Downloaded from OpenStreetMap.') : loading ? 'Loading layout…' : 'No layout yet. Draw one below.') + '</p>' +
+      '<h2>Add</h2><div class="form">' +
+      '<label for="gRef">Name / number</label><input id="gRef" maxlength="8" placeholder="A, B2, 204, A1" value="' + esc(st.lastRef || '') + '">' +
+      '<span></span><div class="row"><button class="btn" data-a="gTaxiway">Taxiway</button><button class="btn" data-a="gStand">Stands</button><button class="btn" data-a="gGate">Gates</button><button class="btn" data-a="gHolding">Holding point</button><button class="btn" data-a="gApron">Apron</button></div></div>' +
+      (st.draft && st.draft.points && st.draft.points.length ? '<div class="row"><button class="btn" data-a="finish">Finish</button><button class="btn" data-a="cancel">Cancel</button></div>' : '');
+    if (s.kind && L && ['taxiway', 'stand', 'gate', 'holding', 'apron'].includes(s.kind)) {
+      const item = ({ taxiway: L.taxiways, stand: L.stands, gate: L.gates || [], holding: L.holding, apron: L.aprons })[s.kind][s.i];
+      if (item) html += '<h2>Selected ' + s.kind + '</h2><div class="form"><label for="gSelRef">Name</label><input id="gSelRef" value="' + esc(item.ref || '') + '" maxlength="8"><span></span><div class="row"><button class="btn" data-a="applyGround">Apply</button><button class="btn danger" data-a="delete">Delete</button></div></div>' +
+        (s.kind === 'taxiway' ? '<p class="note">Drag its points to reshape it; right-click a point to remove it.</p>' : '');
+    }
+    return html + '<p class="note">Stands, taxiway names and holding points show in the scope when you zoom in, and taxi clearances can use them.</p>';
+  }
+
+  function bindPane() {
+    const pane = $('pane');
+    pane.querySelectorAll('[data-sel-sector]').forEach(b => b.onclick = () => { st.sel = { kind: 'sector', i: +b.dataset.selSector }; renderPane(); });
+    pane.querySelectorAll('[data-sel-fac]').forEach(b => b.onclick = () => { st.sel = { kind: 'facility', i: +b.dataset.selFac }; renderPane(); });
+    pane.querySelectorAll('[data-sel-awy]').forEach(b => b.onclick = () => { st.sel = { kind: 'airway', name: b.dataset.selAwy }; renderPane(); });
+    pane.querySelectorAll('[data-sel-proc]').forEach(b => b.onclick = () => { st.sel = { kind: 'proc', i: +b.dataset.selProc, seg: 'legs' }; renderPane(); });
+    pane.querySelectorAll('[data-seg]').forEach(b => b.onclick = () => { st.sel.seg = b.dataset.seg; renderPane(); });
+    const fs = $('fixSearch'); if (fs) fs.onchange = () => { const id = fs.value.trim().toUpperCase(); const f = st.doc.fixes.get(id); if (!f) return toast('No waypoint called ' + id + '.', 'err'); st.sel = { kind: 'fix', id }; zoomTo(f, Math.max(st.view.scale, 8)); renderPane(); };
+    const pf = $('procFilter'); if (pf) pf.onchange = () => { st.procFilter = pf.value; renderPane(); };
+    const ob = $('osmBg'); if (ob) ob.onchange = () => { st.osm = ob.checked; $('osmCredit').hidden = !st.osm; };
+    const gr = $('gRef'); if (gr) gr.oninput = () => { st.lastRef = gr.value.trim().toUpperCase(); };
+    pane.querySelectorAll('[data-rc]').forEach(c => c.onchange = () => {
+      const ap = airportOf(st.airport);
+      edit('ap:' + ap.icao, () => { const pick = k => [...pane.querySelectorAll('[data-rc=' + k + ']:checked')].map(i => i.value); ap.runwayConfig = { arr: pick('arr'), dep: pick('dep') }; });
+    });
+    // procedure leg table
+    pane.querySelectorAll('.legs tr[data-leg]').forEach(tr => {
+      const k = +tr.dataset.leg;
+      tr.querySelectorAll('[data-f]').forEach(inp => inp.onchange = () => {
+        const ap = airportOf(st.airport), pr = ap.procedures[st.sel.i], leg = procSeg(pr, st.sel.seg)[k];
+        edit('ap:' + ap.icao, () => {
+          const f = inp.dataset.f;
+          if (f === 'fix') { const v = inp.value.trim().toUpperCase(); if (!fixById(v, ap)) toast(v + ' is not on the map yet. Add it with "New waypoint here".', 'err'); leg.fix = v; }
+          if (f === 'alt') { const v = parseInt(inp.value, 10); if (v) leg.alt = v; else { delete leg.alt; delete leg.altType; } }
+          if (f === 'altType') { if (inp.value === 'at') delete leg.altType; else leg.altType = inp.value; }
+          if (f === 'spd') { const v = parseInt(inp.value, 10); if (v) leg.spd = v; else delete leg.spd; }
+          if (f === 'faf') { procSeg(pr, 'legs').forEach(l => delete l.faf); if (inp.checked) leg.faf = true; }
+        });
+        renderPane();
+      });
+    });
+    pane.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const ap = airportOf(st.airport), legs = procSeg(ap.procedures[st.sel.i], st.sel.seg); edit('ap:' + ap.icao, () => legs.splice(+b.dataset.del, 1)); renderPane(); });
+    pane.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { const k = +b.dataset.up; if (!k) return; const ap = airportOf(st.airport), legs = procSeg(ap.procedures[st.sel.i], st.sel.seg); edit('ap:' + ap.icao, () => legs.splice(k - 1, 0, legs.splice(k, 1)[0])); renderPane(); });
+    pane.querySelectorAll('[data-a]').forEach(b => b.onclick = () => action(b.dataset.a));
+  }
+  const val = id => ($(id) ? $(id).value.trim() : '');
+  const askName = (label, fallback) => {
+    // The page cannot use prompt(), so names come from a small inline form in the panel.
+    return new Promise(resolve => {
+      const box = document.createElement('div'); box.className = 'form';
+      box.innerHTML = '<label for="askIn">' + esc(label) + '</label><input id="askIn" value="' + esc(fallback || '') + '" maxlength="24"><span></span><div class="row"><button class="btn primary" id="askOk">Continue</button><button class="btn" id="askNo">Cancel</button></div>';
+      $('pane').prepend(box); $('askIn').focus(); $('askIn').select();
+      const done = v => { box.remove(); resolve(v); };
+      $('askOk').onclick = () => done($('askIn').value.trim().toUpperCase() || null);
+      $('askNo').onclick = () => done(null);
+      $('askIn').onkeydown = e => { if (e.key === 'Enter') $('askOk').click(); if (e.key === 'Escape') $('askNo').click(); };
+    });
+  };
+  async function action(a) {
+    const ap = airportOf(st.airport);
+    switch (a) {
+      case 'finish': return finishDraft();
+      case 'cancel': st.draft = null; return renderPane();
+      case 'delete': return deleteSelected();
+      case 'newSector': { const id = await askName('New sector ID', 'NEW' + (st.doc.sectors.length + 1)); if (!id) return; return startDraft({ type: 'sector', id, name: id, snap: 'sector', closed: true }); }
+      case 'applySector': {
+        const s = st.doc.sectors[st.sel.i], oldId = s.id, id = val('sId').toUpperCase();
+        if (!id) return toast('The sector needs an ID.', 'err');
+        edit('sectors', () => { Object.assign(s, { id, name: val('sName') || id, floor: val('sFloor') === '' ? null : +val('sFloor'), ceiling: val('sCeil') === '' ? null : +val('sCeil') }); });
+        if (oldId !== id) edit('facilities', () => st.doc.facilities.forEach(f => { if (f.covers) f.covers = f.covers.map(c => (c === oldId ? id : c)); }));
+        return renderPane();
+      }
+      case 'newCtr': case 'newApPos': {
+        const id = await askName('Callsign', a === 'newCtr' ? 'LGGG_X_CTR' : st.airport + '_TWR'); if (!id) return;
+        if (st.doc.facilities.some(f => f.id === id)) return toast(id + ' already exists.', 'err');
+        const f = a === 'newCtr' ? { id, name: id, freq: '135.000', kind: 'CTR', rank: 4, covers: [] }
+          : { id, name: (ap.city || ap.icao) + ' Tower', freq: '118.000', kind: 'TWR', rank: 1, airport: ap.icao, area: { lat: ap.lat, lon: ap.lon, radius: 10, ceiling: ap.elev + 4000 } };
+        edit('facilities', () => st.doc.facilities.push(f)); st.sel = { kind: 'facility', i: st.doc.facilities.length - 1 }; return renderPane();
+      }
+      case 'applyFac': {
+        const f = st.doc.facilities[st.sel.i];
+        const id = val('fId').toUpperCase(), freq = val('fFreq');
+        if (!/^[A-Z0-9_]{2,12}$/.test(id)) return toast('Callsigns use letters, digits and _ (like LGGG_W_CTR).', 'err');
+        if (!/^1[1-3]\d\.\d{3}$/.test(freq)) return toast('Frequencies look like 132.225.', 'err');
+        edit('facilities', () => {
+          Object.assign(f, { id, name: val('fName') || id, freq, kind: val('fKind') });
+          f.rank = f.kind === 'CTR' ? 4 : { DEL: 0, GND: 0, TWR: 1, F_APP: 2, DEP: 2, APP: 3 }[f.kind];
+          if (f.kind === 'CTR') { f.covers = [...$('pane').querySelectorAll('[data-cover]:checked')].map(c => c.dataset.cover); delete f.area; }
+          else { f.area = Object.assign(f.area || { lat: ap.lat, lon: ap.lon }, { radius: +val('fRad') || 10, ceiling: +val('fCeil') || 4000 }); delete f.covers; }
+        });
+        return renderPane();
+      }
+      case 'deleteFac': edit('facilities', () => st.doc.facilities.splice(st.sel.i, 1)); st.sel = null; return renderPane();
+      case 'newFix': { const id = await askName('Waypoint name', ''); if (!id) return; if (!/^[A-Z0-9]{2,7}$/.test(id)) return toast('Use 2 to 7 letters or digits.', 'err'); return startDraft({ type: 'fix', id, single: true }); }
+      case 'applyFix': {
+        const f = st.doc.fixes.get(st.sel.id), id = val('xId').toUpperCase(), lat = parseFloat(val('xLat')), lon = parseFloat(val('xLon'));
+        if (!/^[A-Z0-9]{2,7}$/.test(id) || !(Math.abs(lat) <= 90) || !(Math.abs(lon) <= 180)) return toast('Check the name and position.', 'err');
+        if (id !== f.id && st.doc.fixes.has(id)) return toast(id + ' already exists.', 'err');
+        edit('fixes', () => { st.doc.fixes.delete(f.id); Object.assign(f, { id, kind: val('xKind'), lat, lon }); st.doc.fixes.set(id, f); });
+        if (id !== st.sel.id) { const old = st.sel.id; edit('airways', () => st.doc.airways.forEach(w => { if (w[0] === old) w[0] = id; if (w[1] === old) w[1] = id; })); }
+        st.sel = { kind: 'fix', id }; return renderPane();
+      }
+      case 'newAirway': { const name = await askName('Airway name', 'UL999'); if (!name) return; return startDraft({ type: 'airway', name, snap: 'fix' }); }
+      case 'renameAwy': { const n = val('aName').toUpperCase(); if (!n) return; const old = st.sel.name; edit('airways', () => st.doc.airways.forEach(w => { if (w[2] === old) w[2] = n; })); st.sel = { kind: 'airway', name: n }; return renderPane(); }
+      case 'trimAwy': { const n = st.sel.name; const idx = st.doc.airways.map((w, i) => (w[2] === n ? i : -1)).filter(i => i >= 0).pop(); if (idx != null) edit('airways', () => st.doc.airways.splice(idx, 1)); return renderPane(); }
+      case 'newProc': {
+        const name = await askName('Procedure name, e.g. KEA2A or RNP Z RWY 03R', ''); if (!name) return;
+        const type = /RWY|ILS|RNP|LOC|VOR|NDB/.test(name) ? 'APP' : (st.procFilter || 'STAR');
+        const pr = { type, name, runway: A.runwaysInUse(ap, type === 'SID' ? 'dep' : 'arr')[0].id, legs: [] };
+        if (type === 'APP') { pr.approach = name.split(' ')[0]; pr.transitions = {}; }
+        edit('ap:' + ap.icao, () => { ap.procedures = ap.procedures || []; ap.procedures.push(pr); });
+        st.sel = { kind: 'proc', i: ap.procedures.length - 1, seg: 'legs' }; toast('New ' + type + '. Change the type with the filter if needed, then click waypoints to add legs.'); return renderPane();
+      }
+      case 'applyProc': {
+        const pr = ap.procedures[st.sel.i];
+        edit('ap:' + ap.icao, () => { pr.name = val('pName').toUpperCase() || pr.name; pr.runway = val('pRwy'); if ($('pKind')) pr.approach = val('pKind'); });
+        return renderPane();
+      }
+      case 'newTransition': { const from = await askName('Transition starts at (fix)', ''); if (!from) return; const pr = ap.procedures[st.sel.i]; edit('ap:' + ap.icao, () => { pr.transitions = pr.transitions || {}; pr.transitions[from] = [{ fix: from }]; }); st.sel.seg = 'tr:' + from; return renderPane(); }
+      case 'delTransition': { const pr = ap.procedures[st.sel.i], k = st.sel.seg.slice(3); edit('ap:' + ap.icao, () => delete pr.transitions[k]); st.sel.seg = 'legs'; return renderPane(); }
+      case 'procWpt': { const id = await askName('New waypoint name', ''); if (!id) return; return startDraft({ type: 'procWpt', id, single: true }); }
+      case 'zoomAp': zoomTo(ap, 300); return;
+      case 'gTaxiway': case 'gStand': case 'gGate': case 'gHolding': case 'gApron': {
+        if (!ap.layout && !st.layouts.has(ap.icao)) return toast('Still loading the layout, try again in a moment.', 'err');
+        const ref = (val('gRef') || '').toUpperCase();
+        const type = a.slice(1).toLowerCase();
+        if (type !== 'apron' && !ref) return toast('Type the ' + (type === 'taxiway' ? 'taxiway name (like B2)' : type + ' number') + ' first.', 'err');
+        if (st.view.scale < 100) zoomTo(ap, 300);
+        return startDraft({ type, ref, single: ['stand', 'gate', 'holding'].includes(type), closed: type === 'apron' });
+      }
+      case 'applyGround': {
+        const L = editableLayout(ap), s = st.sel;
+        edit('ap:' + ap.icao, () => { ({ taxiway: L.taxiways, stand: L.stands, gate: L.gates, holding: L.holding, apron: L.aprons })[s.kind][s.i].ref = val('gSelRef').toUpperCase(); });
+        return renderPane();
+      }
+    }
+  }
+  function appendLeg(id) {
+    const ap = airportOf(st.airport), pr = ap.procedures[st.sel.i], legs = procSeg(pr, st.sel.seg);
+    if (legs.length && legs[legs.length - 1].fix === id) return;
+    edit('ap:' + ap.icao, () => legs.push({ fix: id })); renderPane();
+  }
+
+  // ------------------------------------------------------------ start
+  resize();
+  load().then(() => { homeView(); requestAnimationFrame(draw); }).catch(e => { $('state').textContent = 'Could not load the map: ' + e.message; });
+})();
+</script>

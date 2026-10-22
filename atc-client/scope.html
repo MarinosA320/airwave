@@ -136,6 +136,14 @@ section h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing:
 .checks label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .checks input { accent-color: var(--mine); }
 optgroup { font-family: var(--f-ui); color: var(--muted); }
+.pos-links { display: flex; gap: 6px; }
+a.linkbtn { text-decoration: none; display: inline-flex; align-items: center; }
+.rwy-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.rwy-row select { flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); padding: 6px 8px; font-family: var(--f-data); font-size: 13px; color: var(--text); }
+.rwy-grid { display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px 12px; font-family: var(--f-data); font-size: 13px; align-items: center; margin-bottom: 4px; }
+.rwy-grid .h { font-family: var(--f-ui); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.rwy-grid label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.rwy-grid input { accent-color: var(--mine); }
 kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--line); padding: 0 4px; color: var(--text); }
 
 @media (max-width: 760px) {
@@ -179,7 +187,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     </div>
     <div class="pos">
       <span class="status" id="status"><i></i><span id="statusText">Not connected</span></span>
-      <button class="linkbtn" id="toggleConnect">Connection</button>
+      <span class="pos-links"><a class="linkbtn" id="editorLink" href="/editor" target="_blank" rel="noopener" hidden>Edit map</a><button class="linkbtn" id="toggleConnect">Connection</button></span>
     </div>
 
     <div class="scroll">
@@ -201,6 +209,13 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
           <p class="hint" id="modeHint">Demo traffic runs a full Airwave network inside this page with simulated pilots who read back your instructions.</p>
           <button class="primary" id="connectBtn" type="submit">Connect</button>
         </form>
+      </section>
+
+      <section>
+        <h2><span>Runways</span><span id="rwyState"></span></h2>
+        <div class="rwy-row"><select id="rwyAp" aria-label="Airport"></select><button class="btn" id="rwyApply" type="button">Apply</button></div>
+        <div class="rwy-grid" id="rwyGrid"></div>
+        <p class="hint" id="rwyHint">Tick the runways in use for arrivals and departures. Traffic and procedures follow.</p>
       </section>
 
       <section>
@@ -293,9 +308,41 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     $('facility').value = want;
     $('mapNote').textContent = map.note || '';
   }
+  // ------------------------------------------------------------ runways in use
+  function applyRunwayCfg(cfg) {
+    st.rwyCfg = cfg || {};
+    for (const ap of st.map.airports) ap.cfg = st.rwyCfg[ap.icao] || null;
+    renderRunways(false);
+  }
+  function rwyAirports() { return st.map.airports.filter(a => a.scheduled !== false || (a.procedures && a.procedures.length)); }
+  function fillRwyAirports() {
+    const keep = $('rwyAp').value;
+    const list = rwyAirports();
+    $('rwyAp').innerHTML = list.map(a => '<option value="' + esc(a.icao) + '">' + esc(a.icao + ' ' + (a.city || a.name || '')) + '</option>').join('');
+    const fac = st.facility && st.facility.airport;
+    $('rwyAp').value = list.some(a => a.icao === keep) ? keep : list.some(a => a.icao === fac) ? fac : list.some(a => a.icao === 'LGAV') ? 'LGAV' : (list[0] || {}).icao;
+  }
+  function renderRunways(force) {
+    const ap = st.map.airports.find(a => a.icao === $('rwyAp').value); if (!ap) { $('rwyGrid').innerHTML = ''; return; }
+    if (!force && $('rwyGrid').contains(document.activeElement)) return;
+    const arr = A.runwaysInUse(ap, 'arr').map(r => r.id), dep = A.runwaysInUse(ap, 'dep').map(r => r.id);
+    $('rwyState').textContent = 'ARR ' + arr.join(' ') + ' · DEP ' + dep.join(' ');
+    $('rwyGrid').innerHTML = '<span class="h">Runway</span><span class="h">Arrivals</span><span class="h">Departures</span>' +
+      A.runwayEndIds(ap).map(id => '<span>' + esc(id) + '</span>' +
+        '<label><input type="checkbox" data-k="arr" value="' + esc(id) + '"' + (arr.includes(id) ? ' checked' : '') + '> ARR</label>' +
+        '<label><input type="checkbox" data-k="dep" value="' + esc(id) + '"' + (dep.includes(id) ? ' checked' : '') + '> DEP</label>').join('');
+  }
+  $('rwyAp').addEventListener('change', () => renderRunways(true));
+  $('rwyApply').addEventListener('click', () => {
+    if (!st.conn) return sys('Connect first.', 'err');
+    const pick = k => [...$('rwyGrid').querySelectorAll('input[data-k=' + k + ']:checked')].map(i => i.value);
+    send({ t: 'runways', icao: $('rwyAp').value, arr: pick('arr'), dep: pick('dep') });
+  });
+
   function setMap(map) {
     st.map = map; st.layouts.clear(); st.rbls = [];
     $('fixList').innerHTML = [...map.fixIndex.keys()].sort().map(id => '<option value="' + esc(id) + '"></option>').join('');
+    fillRwyAirports(); applyRunwayCfg(st.rwyCfg);
     fillPositions(map, store.get('facility', ''));
     homeView();
   }
@@ -315,6 +362,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     $('pwField').hidden = st.mode !== 'server';
     $('countField').hidden = st.mode !== 'demo';
     $('mapField').hidden = st.mode !== 'demo';
+    showEditorLink();
     $('modeHint').textContent = st.mode === 'demo'
       ? 'Demo traffic runs a full Airwave network inside this page with simulated pilots who read back your instructions.'
       : 'Connects to an Airwave server, on your PC (ws://localhost:8080/ws) or online (wss://…/ws). A free online server can take about a minute to wake up.';
@@ -322,7 +370,9 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     else if (st.map !== A.MAPS[$('mapSel').value]) setMap(A.MAPS[$('mapSel').value]);
   }
   function httpBase() { const u = $('url').value.trim().replace(/^ws/, 'http'); return u.replace(/\/ws\/?$/, ''); }
+  function showEditorLink() { const a = $('editorLink'); a.hidden = st.mode !== 'server'; a.href = httpBase() + '/editor'; }
   async function loadServerMap() {
+    showEditorLink();
     const slow = setTimeout(() => sys('Waiting for the server. A sleeping online server takes about a minute to wake up…'), 4000);
     let res;
     try { res = await fetch(httpBase() + '/map.json'); } finally { clearTimeout(slow); }
@@ -387,8 +437,17 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
         $('hudFreq').textContent = m.freq; $('radioFreq').textContent = m.freq;
         $('statusText').textContent = (st.mode === 'demo' ? 'Demo · ' : '') + m.callsign;
         if (st.facility && st.facility.area) { st.view.lat = st.facility.area.lat; st.view.lon = st.facility.area.lon; st.view.scale = Math.min(W, H) / (st.facility.area.radius * 2.4); }
+        fillRwyAirports(); applyRunwayCfg(m.runways);
         break;
       }
+      case 'runways': applyRunwayCfg(m.cfg); break;
+      case 'map':
+        // Someone saved an edit in the sector editor: reload the map, keep the view.
+        if (st.mode === 'server') {
+          const keepView = Object.assign({}, st.view);
+          loadServerMap().then(() => { Object.assign(st.view, keepView); applyRunwayCfg(st.rwyCfg); sys('The map was updated (edit ' + m.rev + ').'); }).catch(() => {});
+        }
+        break;
       case 'traffic': {
         st.traffic = m.traffic; st.atc = m.atc;
         const seen = new Set();
@@ -561,9 +620,9 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     selRenderedFor = a.cs;
     const others = st.atc.filter(c => c.cs !== st.me);
     const ap = airportsOf(a);
-    const rwyOf = x => A.activeRunway(x).id;
+    const rwyOf = (x, kind) => (a.rwy && A.runwayEnd(x, a.rwy) ? a.rwy : A.runwaysInUse(x, kind || 'arr')[0].id);
     const stars = ap.arriving ? A.proceduresFor(ap.arr, 'STAR', rwyOf(ap.arr)) : [];
-    const sids = ap.departing ? A.proceduresFor(ap.dep, 'SID', rwyOf(ap.dep)) : [];
+    const sids = ap.departing ? A.proceduresFor(ap.dep, 'SID', rwyOf(ap.dep, 'dep')) : [];
     const apps = ap.arriving ? A.proceduresFor(ap.arr, 'APP') : [];
     const best = ap.arriving ? A.bestApproach(ap.arr, rwyOf(ap.arr)) : null;
     const near = st.map.fixes.slice().sort((x, y) => G.distNm(a, x) - G.distNm(a, y)).slice(0, 15);
@@ -727,10 +786,13 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     for (const ap of st.map.airports) {
       if (!ap.procedures || !ap.procedures.length) continue;
       const [ax, ay] = P(ap); if (!onScreen(ax, ay, 600)) continue;
-      const rwy = A.activeRunway(ap).id;
+      const arrIds = A.runwaysInUse(ap, 'arr').map(r => r.id), depIds = A.runwaysInUse(ap, 'dep').map(r => r.id);
+      const seen = new Set();
       for (const pr of ap.procedures) {
-        // Only the runway in use, so the picture matches what traffic is flying.
-        if (!show[pr.type] || (pr.runway && pr.runway !== 'ALL' && pr.runway !== rwy)) continue;
+        // Only the runways in use, so the picture matches what traffic is flying.
+        const ids = pr.type === 'SID' ? depIds : arrIds;
+        if (!show[pr.type] || (pr.runway && pr.runway !== 'ALL' && !ids.includes(pr.runway))) continue;
+        const key = pr.type + pr.name; if (pr.type !== 'APP' && seen.has(key)) continue; seen.add(key);
         const col = LAYER_COLORS[pr.type]; ctx.strokeStyle = col;
         const legs = A.resolveLegs(st.map, pr); if (!legs.length) continue;
         if (pr.type === 'APP') {
@@ -825,7 +887,10 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       for (const r of ap.runways) {
         const g = A.runwayGeometry(r); const [x1, y1] = P(g.thr), [x2, y2] = P(g.end);
         ctx.strokeStyle = C.text; ctx.lineWidth = sc > 60 ? 1 : 2.4; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-        if (r.active && sc >= 2.5) {
+      }
+      for (const r of A.runwaysInUse(ap, 'arr')) {
+        const g = A.runwayGeometry(r); const [x1, y1] = P(g.thr);
+        if (sc >= 2.5) {
           const far = G.move(g.thr, g.recip, 12); const [x3, y3] = P(far);
           ctx.strokeStyle = C.map; ctx.lineWidth = 1; ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x3, y3); ctx.stroke(); ctx.setLineDash([]);
           for (let d = 4; d <= 12; d += 4) { const t = G.move(g.thr, g.recip, d); const [tx, ty] = P(t); ctx.fillStyle = C.map; ctx.fillRect(tx - 1.5, ty - 1.5, 3, 3); }
@@ -1061,6 +1126,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
   st.map = A.MAPS[$('mapSel').value];
   fillPositions(st.map, store.get('facility', ''));
   $('fixList').innerHTML = [...st.map.fixIndex.keys()].sort().map(id => '<option value="' + esc(id) + '"></option>').join('');
+  fillRwyAirports(); renderRunways(true);
   lastFac = $('facility').value;
   $('callsign').value = store.get('callsign', $('facility').value);
   if (onLocalServer) $('url').value = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
