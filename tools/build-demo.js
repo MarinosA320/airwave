@@ -13,7 +13,9 @@ fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 const out = path.join(root, 'dist', 'airwave-scope-demo.html');
 // AIRWAVE_DEFAULT_SERVER (e.g. wss://airwave.onrender.com/ws) pre-fills the server address in the hosted copy.
 const def = process.env.AIRWAVE_DEFAULT_SERVER ? 'window.AIRWAVE_DEFAULT_SERVER = ' + JSON.stringify(process.env.AIRWAVE_DEFAULT_SERVER) + ';\n' : '';
-fs.writeFileSync(out, page.replace(tag, () => '<script>\n' + def + core + '\nAirwave.registerMap(' + greece + ');\n</script>'));
+const voiceTag = '<script src="/shared/airwave-voice.js"></script>';
+const voice = fs.readFileSync(path.join(root, 'shared', 'airwave-voice.js'), 'utf8');
+fs.writeFileSync(out, page.replace(tag, () => '<script>\n' + def + core + '\nAirwave.registerMap(' + greece + ');\n</script>').replace(voiceTag, () => '<script>\n' + voice + '\n</script>'));
 console.log('Wrote ' + out + ' (' + Math.round(fs.statSync(out).size / 1024) + ' KB)');
 
 // A complete page for static hosting (GitHub Pages): dist/site/index.html

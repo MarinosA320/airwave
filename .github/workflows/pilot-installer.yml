@@ -38,6 +38,8 @@ jobs:
           New-Item -ItemType Directory -Force "$s/node", "$s/app/sim-addons/msfs", "$s/app/sim-addons/xplane" | Out-Null
           Copy-Item (Get-Command node).Source "$s/node/node.exe"
           Copy-Item pilot-client "$s/app/pilot-client" -Recurse
+          New-Item -ItemType Directory -Force "$s/app/shared" | Out-Null
+          Copy-Item shared/airwave-voice.js "$s/app/shared/"
           Remove-Item "$s/app/pilot-client/config.json" -ErrorAction SilentlyContinue
           Copy-Item sim-addons/msfs/airwave-pilot-panel "$s/app/sim-addons/msfs/airwave-pilot-panel" -Recurse
           Copy-Item plugin/Airwave "$s/app/sim-addons/xplane/Airwave" -Recurse
@@ -77,6 +79,10 @@ jobs:
           Write-Host "Panel API answered: net=$($panel.net) freq=$($panel.freq)"
           $html = (Invoke-WebRequest http://localhost:8090/panel -UseBasicParsing).Content
           if ($html -notmatch 'AIRWAVE') { throw 'panel page missing' }
+          $js = (Invoke-WebRequest http://localhost:8090/voice.js -UseBasicParsing).Content
+          if ($js -notmatch 'AirwaveVoice') { throw 'voice module missing' }
+          $reqs = Invoke-RestMethod http://localhost:8090/api/requests
+          Write-Host "Requests offered: $($reqs.Count) groups"
           Stop-Process $proc.Id
           $p = Start-Process "$app\unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -Wait -PassThru
           Start-Sleep 3

@@ -126,8 +126,10 @@ KIND = {'CLD': 'DEL', 'GND': 'GND', 'TWR': 'TWR', 'AFIS': 'TWR', 'APP': 'APP', '
 WORD = {'DEL': 'Delivery', 'GND': 'Ground', 'TWR': 'Tower', 'APP': 'Approach', 'DEP': 'Departure', 'F_APP': 'Arrival'}
 AREA = {  # radius nm, ceiling ft (above elevation for TWR/GND/DEL), rank (lower = more specific)
     'DEL': (3, 0, 0), 'GND': (3, 0, 0), 'TWR': (10, 4000, 1), 'F_APP': (25, 12000, 2), 'DEP': (35, 19500, 2), 'APP': (40, 19500, 3)}
-freqs = {}
+freqs, atis_freq = {}, {}
 for r in rows('airport-frequencies.csv'):
+    if r['type'] == 'ATIS' and num(r['frequency_mhz']) and 118 <= num(r['frequency_mhz']) < 137:
+        atis_freq[r['airport_ident']] = '%.3f' % num(r['frequency_mhz'])
     if r['airport_ident'] not in by_id: continue
     kind = KIND.get(r['type'])
     f = num(r['frequency_mhz'])
@@ -144,6 +146,7 @@ for ident, r in sorted(by_id.items()):
           'type': r['type'].split('_')[0], 'scheduled': r['scheduled_service'] == 'yes',
           'lat': round(num(r['latitude_deg']), 5), 'lon': round(num(r['longitude_deg']), 5), 'elev': elev,
           'runways': pick_active(runways[ident]), 'procedures': []}
+    if ident in atis_freq: ap['atis'] = atis_freq[ident]
     airports.append(ap)
     seen = set()
     def place_of(desc):

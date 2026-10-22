@@ -144,6 +144,26 @@ a.linkbtn { text-decoration: none; display: inline-flex; align-items: center; }
 .rwy-grid .h { font-family: var(--f-ui); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .rwy-grid label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
 .rwy-grid input { accent-color: var(--mine); }
+/* Requests, clearances, frequencies, ATIS */
+.reqbox { border: 1px solid var(--amber); background: color-mix(in srgb, var(--amber) 9%, var(--panel)); padding: 8px 10px; margin: 8px 0; }
+.reqbox.emg { border-color: var(--alert); background: color-mix(in srgb, var(--alert) 12%, var(--panel)); }
+.reqbox .rk { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); }
+.reqbox.emg .rk { color: var(--alert); }
+.reqbox .rt { font-family: var(--f-data); font-size: 13px; margin: 3px 0 7px; overflow-wrap: anywhere; }
+.reqbox .actions { margin-top: 0; }
+.strip .badge { font-size: 10.5px; padding: 0 4px; border: 1px solid var(--amber); color: var(--amber); margin-left: 4px; }
+.strip .badge.emg { border-color: var(--alert); color: var(--alert); }
+.strip .badge.ph { border-color: var(--line); color: var(--muted); }
+.online { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; font-family: var(--f-data); font-size: 12.5px; }
+.online .me { color: var(--mine); }
+.online .muted { color: var(--muted); }
+.atis { font-family: var(--f-data); font-size: 12px; color: var(--muted); line-height: 1.45; margin: 6px 0; }
+.atis b { color: var(--amber); font-weight: 600; }
+.log .req { color: var(--amber); }
+.log .emg { color: var(--alert); font-weight: 600; }
+.ptt { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.ptt .btn.on { background: var(--alert); border-color: var(--alert); color: #fff; }
+.ptt .rx { font-family: var(--f-data); font-size: 12px; color: var(--ok); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--line); padding: 0 4px; color: var(--text); }
 
 @media (max-width: 760px) {
@@ -216,6 +236,13 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
         <div class="rwy-row"><select id="rwyAp" aria-label="Airport"></select><button class="btn" id="rwyApply" type="button">Apply</button></div>
         <div class="rwy-grid" id="rwyGrid"></div>
         <p class="hint" id="rwyHint">Tick the runways in use for arrivals and departures. Traffic and procedures follow.</p>
+        <div class="atis" id="atisBox"></div>
+        <div class="rwy-row"><input id="atisRemarks" class="btn" style="flex:1;min-width:0;text-align:left;font-weight:400;font-family:var(--f-data)" maxlength="200" placeholder="ATIS remarks, e.g. bird activity reported"><button class="btn" id="atisSet" type="button">Set</button></div>
+      </section>
+
+      <section>
+        <h2><span>Online</span><span id="onlineCount"></span></h2>
+        <div class="online" id="online"><span class="muted">Not connected.</span></div>
       </section>
 
       <section>
@@ -232,6 +259,11 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
           <label><input type="checkbox" id="lyTerrain"> Terrain</label>
         </div>
         <p class="hint" id="mapNote"></p>
+      </section>
+
+      <section id="reqSection" hidden>
+        <h2><span>Requests</span><span id="reqCount"></span></h2>
+        <div class="strips" id="reqList"></div>
       </section>
 
       <section>
@@ -252,12 +284,20 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
           <input id="tx" placeholder="Transmit on frequency" maxlength="240">
           <button class="btn" type="submit">Send</button>
         </form>
+        <div class="ptt">
+          <button class="btn" id="pttBtn" type="button" title="Hold to talk">PTT</button>
+          <button class="btn" id="pttKey" type="button" title="Choose the push-to-talk key">Key: <span id="pttKeyName">Left Ctrl</span></button>
+          <label class="hint" style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="ttsOn"> Read text aloud</label>
+          <input type="range" id="vol" min="0" max="1" step="0.05" value="0.9" aria-label="Radio volume" style="width:70px">
+          <span class="rx" id="rxInd"></span>
+        </div>
       </section>
     </div>
   </aside>
 </div>
 
 <script src="/shared/airwave-core.js"></script>
+<script src="/shared/airwave-voice.js"></script>
 <script>
 (function () {
   'use strict';
@@ -274,7 +314,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     mode: 'demo', conn: null, me: null, freq: null, facility: null, map: null,
     traffic: [], atc: [], hist: new Map(), selected: null,
     view: { lat: 0, lon: 0, scale: 0 }, conflicts: [], inConflict: new Set(), rbls: [], rblDraft: null, measure: false,
-    layouts: new Map(), layoutBase: null
+    layouts: new Map(), layoutBase: null, atis: new Map()
   };
   const store = {
     get(k, d) { try { const v = localStorage.getItem('airwave.' + k); return v == null ? d : v; } catch (e) { return d; } },
@@ -332,7 +372,13 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
         '<label><input type="checkbox" data-k="arr" value="' + esc(id) + '"' + (arr.includes(id) ? ' checked' : '') + '> ARR</label>' +
         '<label><input type="checkbox" data-k="dep" value="' + esc(id) + '"' + (dep.includes(id) ? ' checked' : '') + '> DEP</label>').join('');
   }
-  $('rwyAp').addEventListener('change', () => renderRunways(true));
+  // ATIS for the airport chosen in the Runways panel; remarks you set are added to it (and give a new letter).
+  function renderAtis() {
+    const a = st.atis.get($('rwyAp').value);
+    $('atisBox').innerHTML = a ? '<b>ATIS ' + esc(a.letter) + '</b>' + (a.freq ? ' · ' + esc(a.freq) : '') + '<br>' + esc(a.text) + (a.raw ? '<br><span style="opacity:.75">' + esc(a.raw) + '</span>' : '') : '<span>No ATIS at this airport.</span>';
+  }
+  $('atisSet').addEventListener('click', () => { if (!st.conn) return sys('Connect first.', 'err'); send({ t: 'atis', icao: $('rwyAp').value, remarks: $('atisRemarks').value.trim() }); });
+  $('rwyAp').addEventListener('change', () => { renderRunways(true); renderAtis(); });
   $('rwyApply').addEventListener('click', () => {
     if (!st.conn) return sys('Connect first.', 'err');
     const pick = k => [...$('rwyGrid').querySelectorAll('input[data-k=' + k + ']:checked')].map(i => i.value);
@@ -426,6 +472,13 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     $('log').textContent = '';
     setStatus('', 'Not connected');
   }
+  // Stations online: controllers with frequencies, then ATIS frequencies.
+  function renderOnline() {
+    const rows = st.atc.slice().sort((a, b) => a.cs.localeCompare(b.cs)).map(c => '<span class="' + (c.cs === st.me ? 'me' : '') + '">' + esc(c.cs) + '</span><span class="muted">' + esc(c.name) + '</span><span class="' + (c.cs === st.me ? 'me' : '') + '">' + esc(c.freq) + '</span>');
+    const atis = [...st.atis.values()].filter(a => a.freq).sort((a, b) => a.icao.localeCompare(b.icao)).map(a => '<span>' + esc(a.icao) + '_ATIS</span><span class="muted">information ' + esc(a.letter) + '</span><span>' + esc(a.freq) + '</span>');
+    $('online').innerHTML = rows.concat(atis).join('') || '<span class="muted">Nobody online.</span>';
+    $('onlineCount').textContent = st.atc.length + ' ATC';
+  }
   function setStatus(cls, text) { $('status').className = 'status ' + cls; $('statusText').textContent = text; }
   const send = m => st.conn && st.conn.send(m);
 
@@ -438,6 +491,20 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
         $('statusText').textContent = (st.mode === 'demo' ? 'Demo · ' : '') + m.callsign;
         if (st.facility && st.facility.area) { st.view.lat = st.facility.area.lat; st.view.lon = st.facility.area.lon; st.view.scale = Math.min(W, H) / (st.facility.area.radius * 2.4); }
         fillRwyAirports(); applyRunwayCfg(m.runways);
+        st.atis.clear(); (m.atis || []).forEach(a => st.atis.set(a.icao, a)); renderAtis(); renderOnline(); st.welcomeAt = Date.now();
+        break;
+      }
+      case 'atis': {
+        const prev = st.atis.get(m.icao); st.atis.set(m.icao, m); renderAtis(); renderOnline();
+        const mineAp = (st.facility && st.facility.airport) || $('rwyAp').value;
+        if (prev && prev.letter !== m.letter && m.icao === mineAp && Date.now() - (st.welcomeAt || 0) > 5000) sys(m.icao + ' ATIS is now information ' + m.letter + '.');
+        break;
+      }
+      case 'req': {
+        const emg = m.kind === 'mayday' || m.kind === 'pan';
+        addLog('<span class="t">' + utc().slice(0, 5) + '</span> <span class="' + (emg ? 'emg' : 'req') + '">REQUEST ' + esc(m.from) + ': ' + esc(m.text.replace(/^[^,]*, [A-Z0-9_]+, |^[A-Z0-9_]+, /, '')) + '</span>');
+        if (!st.selected || emg) { st.selected = m.from; }
+        renderSide();
         break;
       }
       case 'runways': applyRunwayCfg(m.cfg); break;
@@ -461,10 +528,13 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
         for (const k of st.hist.keys()) if (!seen.has(k)) st.hist.delete(k);
         if (st.selected && !seen.has(st.selected)) st.selected = null;
         findConflicts();
-        renderSide();
+        renderSide(); renderOnline();
         break;
       }
-      case 'msg': radio(m); break;
+      case 'msg':
+        if (m.text && m.from && m.from !== st.me && !m.system) { st.lastHeard = m.from; if (voice && $('ttsOn').checked && m.freq === st.freq) voice.speak(m.text, m.from); }
+        radio(m); break;
+      case 'voice': if (voice && st.mode === 'server') voice.receive(m); break;
       case 'handoff': sys(m.from + ' is handing off ' + m.callsign + '. Type ' + m.callsign + ' A to accept.'); break;
       case 'error': sys(m.text, 'err'); break;
       case 'left': if (st.selected === m.callsign) st.selected = null; break;
@@ -488,6 +558,37 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
   }
   function sys(text, kind) { addLog('<span class="t">' + utc().slice(0, 5) + '</span> <span class="' + (kind === 'err' ? 'err' : 'sys') + '">' + esc(text) + '</span>'); }
 
+  // ------------------------------------------------------------ voice (push-to-talk) and text-to-speech
+  const voice = window.AirwaveVoice ? new window.AirwaveVoice({
+    send: m => { if (st.mode === 'server') send(m); },
+    onState: v => {
+      if (v.error) sys(v.error, 'err');
+      if ('tx' in v) { $('pttBtn').classList.toggle('on', v.tx); $('pttBtn').textContent = v.tx ? 'TX ' + (st.freq || '') : 'PTT'; }
+      if ('rx' in v) { st.rxFrom = v.rx; $('rxInd').textContent = v.rx ? 'RX ' + v.rx : ''; }
+    }
+  }) : null;
+  let pttCode = store.get('pttKey', 'ControlLeft');
+  const keyName = c => c.replace(/^Key/, '').replace(/^Digit/, '').replace('ControlLeft', 'Left Ctrl').replace('ControlRight', 'Right Ctrl').replace('ShiftLeft', 'Left Shift').replace('ShiftRight', 'Right Shift').replace('AltRight', 'Right Alt').replace('Backquote', '`');
+  $('pttKeyName').textContent = keyName(pttCode);
+  $('ttsOn').checked = store.get('tts', '0') === '1';
+  $('ttsOn').onchange = () => store.set('tts', $('ttsOn').checked ? '1' : '0');
+  $('vol').value = store.get('vol', '0.9'); if (voice) voice.setVolume(Number($('vol').value));
+  $('vol').oninput = () => { if (voice) voice.setVolume(Number($('vol').value)); store.set('vol', $('vol').value); };
+  let pickingKey = false;
+  $('pttKey').onclick = () => { pickingKey = true; $('pttKeyName').textContent = 'press a key…'; };
+  const pttOk = () => { if (st.mode !== 'server' || !st.conn) { sys('Voice works when connected to an Airwave server.', 'err'); return false; } return !!voice; };
+  $('pttBtn').addEventListener('pointerdown', e => { e.preventDefault(); if (pttOk()) voice.ptt(true); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => $('pttBtn').addEventListener(ev, () => voice && voice.ptt(false)));
+  document.addEventListener('keydown', e => {
+    if (pickingKey) { e.preventDefault(); pickingKey = false; pttCode = e.code; store.set('pttKey', pttCode); $('pttKeyName').textContent = keyName(pttCode); return; }
+    if (e.code !== pttCode || e.repeat) return;
+    const typing = /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '') && !/Control|Shift|Alt|Meta|F\d/.test(pttCode);
+    if (typing) return;
+    e.preventDefault(); if (pttOk()) voice.ptt(true);
+  }, true);
+  document.addEventListener('keyup', e => { if (e.code === pttCode && voice) voice.ptt(false); }, true);
+  window.addEventListener('blur', () => voice && voice.ptt(false));
+
   $('txForm').addEventListener('submit', e => {
     e.preventDefault();
     const text = $('tx').value.trim(); if (!text) return;
@@ -509,7 +610,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
 
   // ------------------------------------------------------------ commands
   const fl = ft => String(Math.round(ft / 100)).padStart(3, '0');
-  const RESERVED = /^(A|AS|FL\d+|[HLRS]\d+|D|ILS|APP|RES|REL|HO|STAR|SID|SQ\d*|TAXI)$/;
+  const RESERVED = /^(A|AS|FL\d+|[HLRS]\d+|D|ILS|APP|RES|REL|HO|STAR|SID|SQ\d*|TAXI|CLR|VFR|PUSH|LU|CTO|CTL|GA|HS|CROSS|RWY|VIS|SAY|UNABLE|STBY|OK)$/;
   function resolveCs(tok) {
     const exact = st.traffic.find(a => a.cs === tok); if (exact) return exact.cs;
     const m = st.traffic.filter(a => a.cs.startsWith(tok) || a.cs.endsWith(tok));
@@ -549,7 +650,28 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
         else if (/^\d{1,3}[A-Z]?$/.test(to)) to = 'STAND ' + to;
         send({ t: 'instr', to: cs, kind: 'taxi', value: { to, via: v < 0 ? [] : rest.slice(v + 1) } });
       }
-      else return sys('Unknown command ' + t + '. Try L270, FL120, A60, S220, D ATH, SQ, SID name, STAR name, APP, TAXI HP03R VIA A B, RES, A, REL or HO.', 'err');
+      else if (t === 'CLR' || t === 'VFR') {
+        // CLR [SID] [FL60 | A60]   ·   VFR [A35]
+        const v = { type: t === 'CLR' ? 'IFR' : 'VFR', sq: 'AUTO' };
+        while (toks[i + 1] && !RESERVED.test(toks[i + 1]) || (toks[i + 1] && /^(FL|A)\d+$/.test(toks[i + 1]))) {
+          const x = toks[++i];
+          if ((m = x.match(/^FL(\d{2,3})$/))) v.alt = Number(m[1]) * 100; else if ((m = x.match(/^A(\d{1,3})$/))) v.alt = Number(m[1]) * 100; else v.sid = x;
+        }
+        send({ t: 'instr', to: cs, kind: 'clearance', value: v });
+      }
+      else if (t === 'PUSH') send({ t: 'instr', to: cs, kind: 'pushback', value: '' });
+      else if (['LU', 'CTO', 'CTL', 'HS', 'CROSS', 'RWY'].includes(t)) {
+        const rwy = toks[i + 1] && /^\d{2}[LRC]?$/.test(toks[i + 1]) ? toks[++i] : undefined;
+        if ((t === 'HS' || t === 'CROSS' || t === 'RWY') && !rwy) return sys('Name the runway, for example ' + t + ' 03R.', 'err');
+        send({ t: 'instr', to: cs, kind: { LU: 'lineup', CTO: 'takeoff', CTL: 'land', HS: 'holdshort', CROSS: 'cross', RWY: 'rwy' }[t], value: rwy });
+      }
+      else if (t === 'GA') send({ t: 'instr', to: cs, kind: 'goaround' });
+      else if (t === 'VIS') send({ t: 'instr', to: cs, kind: 'ils', visual: true });
+      else if (t === 'SAY') { const text = line.trim().split(/\s+/).slice(line.trim().toUpperCase().split(/\s+/).indexOf('SAY') + 1).join(' '); i = toks.length; if (!text) return sys('Type the message after SAY.', 'err'); send({ t: 'instr', to: cs, kind: 'text', value: text }); }
+      else if (t === 'UNABLE') send({ t: 'instr', to: cs, kind: 'reply', value: 'unable' });
+      else if (t === 'STBY') send({ t: 'instr', to: cs, kind: 'reply', value: 'standby', keep: true });
+      else if (t === 'OK') { const a = st.traffic.find(x => x.cs === cs); if (a && a.req) reqAction(a, a.req)[1](); else return sys(cs + ' has no request waiting.', 'err'); }
+      else return sys('Unknown command ' + t + '. Try L270, FL120, A60, S220, D ATH, SQ, SID name, STAR name, APP, VIS, TAXI HP03R VIA A B, CLR, VFR, PUSH, LU, CTO, CTL, GA, HS 03R, CROSS 03R, RWY 03L, SAY text, OK, UNABLE, STBY, RES, A, REL or HO.', 'err');
     }
   }
   $('cmdForm').addEventListener('submit', e => { e.preventDefault(); if (!st.conn) return sys('Connect first.', 'err'); runCommand($('cmd').value); $('cmd').value = ''; });
@@ -569,17 +691,23 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     const rank = a => (a.handoff === st.me ? 0 : a.owner === st.me ? 1 : !a.owner ? 2 : 3);
     const list = [...st.traffic].sort((a, b) => rank(a) - rank(b) || a.cs.localeCompare(b.cs));
     $('listCount').textContent = list.filter(a => a.owner === st.me).length + ' yours / ' + list.length;
+    const reqs = list.filter(a => (a.req || a.emergency) && (a.owner === st.me || a.freq === st.freq || a.emergency));
+    $('reqSection').hidden = !reqs.length; $('reqCount').textContent = reqs.length || '';
+    $('reqList').innerHTML = reqs.map(a => '<button class="strip ' + stripClass(a) + '" data-cs="' + esc(a.cs) + '"><span class="bar" style="background:var(--' + (a.emergency ? 'alert' : 'amber') + ')"></span><span><span class="cs">' + esc(a.cs) + '</span> ' +
+      (a.emergency ? '<span class="badge emg">' + esc(a.emergency) + '</span> ' : '') + '<br><span class="sub">' + esc(a.req ? reqLabel(a.req) : '') + '</span></span><span class="lvl sub">' + esc(a.phase || fl(a.alt)) + '</span></button>').join('');
     $('strips').innerHTML = list.map(a => {
       const trend = a.vs > 300 ? '↑' : a.vs < -300 ? '↓' : ' ';
       const clr = a.cleared && a.cleared.alt ? fl(a.cleared.alt) : '';
       return '<button class="strip ' + stripClass(a) + '" data-cs="' + esc(a.cs) + '"><span class="bar"></span>' +
-        '<span><span class="cs">' + esc(a.cs) + '</span> <span class="sub">' + esc(a.type) + ' ' + esc((a.fp && a.fp.dep) || '') + '→' + esc((a.fp && a.fp.arr) || '') + '</span><br>' +
+        '<span><span class="cs">' + esc(a.cs) + '</span> <span class="sub">' + esc(a.type) + ' ' + esc((a.fp && a.fp.dep) || '') + '→' + esc((a.fp && a.fp.arr) || '') + '</span>' +
+        (a.emergency ? '<span class="badge emg">' + esc(a.emergency) + '</span>' : a.req ? '<span class="badge">REQ</span>' : '') + (a.phase ? '<span class="badge ph">' + esc(a.phase) + '</span>' : '') + '<br>' +
         '<span class="sub">' + (a.owner ? esc(a.owner) : 'unowned') + (a.handoff ? ' → ' + esc(a.handoff) : '') + '</span></span>' +
         '<span class="lvl">' + fl(a.alt) + trend + clr + '<br><span class="sub">' + a.gs + 'kt</span></span></button>';
     }).join('');
     renderSelected();
   }
   $('strips').addEventListener('click', e => { const b = e.target.closest('.strip'); if (b) { st.selected = b.dataset.cs; renderSide(); } });
+  $('reqList').addEventListener('click', e => { const b = e.target.closest('.strip'); if (b) { st.selected = b.dataset.cs; renderSide(); } });
 
   let selRenderedFor = null;
   // Airports this aircraft is leaving and going to, if they are on the map.
@@ -604,6 +732,52 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       (a.cleared && (a.cleared.sid || a.cleared.star || a.cleared.app || a.cleared.taxi) ? '<div class="route"><span>Cleared</span>' +
         esc([a.cleared.sid && 'SID ' + a.cleared.sid, a.cleared.star && 'STAR ' + a.cleared.star, a.cleared.app && 'APP ' + a.cleared.app, a.cleared.taxi && 'Taxi ' + a.cleared.taxi].filter(Boolean).join(' · ')) + '</div>' : '');
   }
+  // ---------------- pilot requests: what each one asks, and the one-click answer
+  const reqLabel = r => r.text.replace(/^[^,]*, [A-Z0-9_]+, |^[A-Z0-9_]+, /, '');
+  function reqAction(a, r) {
+    const v = r.value, I = (kind, value, extra) => send(Object.assign({ t: 'instr', to: a.cs, kind, value }, extra || {}));
+    const reply = text => I('reply', text);
+    const open = (id, focus, fill) => { const d = $(id); if (d) { d.open = true; const f = $(focus); if (f) { if (fill != null && !f.value) f.value = fill; f.focus(); } } };
+    const standOf = (r.text.match(/stand (\w+)/i) || [])[1];
+    const T = {
+      ifr: ['Clearance…', () => { open('grpClr', 'iClrSid'); if ($('iClrType')) $('iClrType').value = 'IFR'; }],
+      vfr: ['Clearance…', () => { open('grpClr', 'iClrAlt'); if ($('iClrType')) $('iClrType').value = 'VFR'; }],
+      startup: ['Approve push', () => I('pushback', '')],
+      taxi: ['Taxi…', () => open('grpGround', 'iTaxiTo', a.rwy ? 'HP ' + a.rwy : '')],
+      twy: ['Taxi…', () => open('grpGround', 'iTaxiVia', v)],
+      vacated: ['Taxi…', () => open('grpGround', 'iTaxiTo', standOf ? 'STAND ' + standOf : '')],
+      intersection: ['Approve', () => reply('intersection ' + v + ' approved')],
+      ready: ['Clear take-off', () => I('takeoff', v || a.rwy || undefined)],
+      rwy: ['Approve', () => I('rwy', v)],
+      sid: ['Clear SID', () => I('sid', v)],
+      star: ['Clear STAR', () => I('star', v)],
+      app: ['Clear approach', () => I('ils', v)],
+      visual: ['Clear visual', () => I('ils', undefined, { visual: true })],
+      higher: ['Approve', () => I('alt', v)],
+      lower: ['Approve', () => I('alt', v)],
+      direct: ['Approve', () => I('direct', v)],
+      weather: ['Approve', () => I('hdg', v)],
+      speed: ['Approve', () => I('spd', 0)],
+      confirmspeed: ['Affirm', () => I('spd', 0)],
+      established: ['Clear to land', () => I('land', a.rwy || undefined)],
+      checkin: ['Identified', () => { if (a.owner !== st.me) send({ t: 'assume', to: a.cs }); reply('identified'); }]
+    };
+    return T[r.kind] || ['Roger', () => reply('roger')];
+  }
+  function reqHtml(a) {
+    if (!a.req && !a.emergency) return '';
+    const r = a.req, emg = !!a.emergency;
+    const main = r ? reqAction(a, r)[0] : null;
+    return '<div class="reqbox' + (emg ? ' emg' : '') + '"><div class="rk">' + (emg ? esc(a.emergency) + (r ? ' · request' : '') : 'Request') + '</div>' +
+      (r ? '<div class="rt">' + esc(reqLabel(r)) + '</div><div class="actions"><button class="btn accent" data-act="rqDo">' + esc(main) + '</button>' +
+        (main === 'Roger' ? '' : '<button class="btn" data-act="rqUnable">Unable</button>') + '<button class="btn" data-act="rqStby">Standby</button></div>' : '<div class="rt">Emergency declared.</div>') + '</div>';
+  }
+  // Airport for runway instructions: the one the aircraft is at or near.
+  function nearAirport(a) {
+    const ap = airportsOf(a);
+    const cands = [ap.dep, ap.arr].filter(Boolean).filter(x => G.distNm(a, x) < 40);
+    return cands.sort((x, y) => G.distNm(a, x) - G.distNm(a, y))[0] || st.map.airports.slice().sort((x, y) => G.distNm(a, x) - G.distNm(a, y))[0];
+  }
   function renderSelected() {
     const a = st.traffic.find(x => x.cs === st.selected);
     const box = $('selected');
@@ -612,6 +786,8 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     const ownerText = a.handoff === st.me ? 'Handoff to you from ' + a.owner : a.owner ? (mine ? 'You control this aircraft' : 'Controlled by ' + a.owner) : 'Not controlled';
     if (selRenderedFor === a.cs) {
       box.querySelector('.facts').innerHTML = factsHtml(a);
+      const slot = box.querySelector('.reqslot'), rq = reqHtml(a);
+      if (slot.dataset.v !== rq) { slot.innerHTML = rq; slot.dataset.v = rq; }
       box.querySelector('.sel-owner').textContent = ownerText;
       box.querySelector('[data-act=own]').outerHTML = ownButton(a);
       const q = $('qdmOut'); if (q) q.textContent = qdmText(a, $('iQdm').value);
@@ -628,9 +804,27 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     const near = st.map.fixes.slice().sort((x, y) => G.distNm(a, x) - G.distNm(a, y)).slice(0, 15);
     const groundAp = ap.departing ? ap.dep : ap.arriving ? ap.arr : null;
     const opt = (v, label, selAttr) => '<option value="' + esc(v) + '"' + (selAttr ? ' selected' : '') + '>' + esc(label || v) + '</option>';
+    const rq = reqHtml(a);
+    const twrAp = nearAirport(a);
+    const ends = twrAp ? A.runwayEndIds(twrAp) : [];
+    const rwyNow = a.rwy && ends.includes(a.rwy) ? a.rwy : twrAp ? A.runwaysInUse(twrAp, ap.arriving ? 'arr' : 'dep')[0].id : '';
+    const allSids = ap.dep ? A.proceduresFor(ap.dep, 'SID') : [];
+    const lowNear = twrAp && a.alt - twrAp.elev < 4000 && G.distNm(a, twrAp) < 15;
     box.innerHTML =
       '<div class="sel-head"><span class="sel-cs">' + esc(a.cs) + '</span><span class="sel-owner">' + esc(ownerText) + '</span></div>' +
       '<div class="facts">' + factsHtml(a) + '</div>' +
+      '<div class="reqslot" data-v="' + esc(rq) + '">' + rq + '</div>' +
+      (ap.dep ? '<details class="grp" id="grpClr"' + (a.onGround && !(a.cleared && a.cleared.clr) ? ' open' : '') + '><summary>Clearance · ' + esc(ap.dep.icao) + '</summary>' +
+        '<div class="ctl"><span>Type</span><select id="iClrType">' + opt('IFR', 'IFR') + opt('VFR', 'VFR') + '</select><span></span></div>' +
+        '<div class="ctl"><span>To</span><input id="iClrDest" maxlength="20" value="' + esc((a.fp && a.fp.arr) || '') + '" spellcheck="false"><span></span></div>' +
+        '<div class="ctl"><span>SID</span><select id="iClrSid">' + opt('', 'none (vectors / VFR)') + allSids.map(p => opt(p.name, p.name + ' · RWY ' + p.runway, (a.proc && a.proc === p.name) || (!a.proc && sids[0] === p))).join('') + '</select><span></span></div>' +
+        '<div class="ctl"><span>Initial</span><input id="iClrAlt" maxlength="6" placeholder="FL60 or 6000" spellcheck="false"><span></span></div>' +
+        '<div class="ctl"><span>Squawk</span><input id="iClrSq" maxlength="4" placeholder="auto" inputmode="numeric"><button class="btn accent" data-act="clr">Clear</button></div>' +
+        '</details>' : '') +
+      (twrAp ? '<details class="grp" id="grpTwr"' + (lowNear ? ' open' : '') + '><summary>Runway · ' + esc(twrAp.icao) + '</summary>' +
+        '<div class="ctl"><span>Runway</span><select id="iTwrRwy">' + ends.map(id => opt(id, id, id === rwyNow)).join('') + '</select><button class="btn" data-act="xrwy" title="Expect this runway">Expect</button></div>' +
+        '<div class="actions">' + (a.onGround ? '<button class="btn" data-act="push">Push &amp; start</button><button class="btn" data-act="lu">Line up</button><button class="btn accent" data-act="cto">Take-off</button><button class="btn" data-act="hs">Hold short</button><button class="btn" data-act="cross">Cross</button>'
+          : '<button class="btn accent" data-act="ctl">Land</button><button class="btn warn" data-act="ga">Go around</button>') + '</div></details>' : '') +
       '<div class="ctl"><span>Heading</span><input id="iHdg" inputmode="numeric" maxlength="3" value="' + String(a.hdg).padStart(3, '0') + '"><div class="btns"><button class="btn" data-act="L">Left</button><button class="btn" data-act="R">Right</button></div></div>' +
       '<div class="ctl"><span>Level</span><input id="iAlt" maxlength="6" placeholder="FL120 or 6000" value="' + (a.cleared && a.cleared.alt ? (a.cleared.alt > (st.map.transitionAlt || 6000) ? 'FL' + fl(a.cleared.alt) : a.cleared.alt) : '') + '"><button class="btn" data-act="alt">Set</button></div>' +
       '<div class="ctl"><span>Speed</span><input id="iSpd" inputmode="numeric" maxlength="3" placeholder="kt" value="' + ((a.cleared && a.cleared.spd) || '') + '"><button class="btn" data-act="spd">Set</button></div>' +
@@ -641,12 +835,13 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       (ap.arriving ? '<div class="ctl"><span>Approach</span><select id="iApp">' + opt('', (best ? best.name : 'Runway ' + rwyOf(ap.arr)) + ' (best)') + apps.filter(p => p !== best).map(p => opt(p.name)).join('') + '</select><button class="btn" data-act="app">Clear</button></div>' : '') +
       '<div class="ctl"><span>QDM to</span><select id="iQdm">' + near.map(f => opt(f.id, f.id + ' ' + (f.kind || '').toUpperCase())).join('') + '</select><button class="btn" data-act="qdmDraw" title="Draw a measuring line from the aircraft to this navaid">Draw</button></div>' +
       '<div class="qdm" id="qdmOut">' + esc(near[0] ? qdmText(a, near[0].id) : '') + '</div>' +
-      (groundAp ? '<details class="grp"' + (a.alt - groundAp.elev < 800 ? ' open' : '') + '><summary>Ground · ' + esc(groundAp.icao) + '</summary>' +
+      (groundAp ? '<details class="grp" id="grpGround"' + (a.onGround ? ' open' : '') + '><summary>Taxi · ' + esc(groundAp.icao) + '</summary>' +
         '<div class="ctl"><span>Taxi to</span><input id="iTaxiTo" list="taxiToList" placeholder="HP ' + esc(rwyOf(groundAp)) + ' or stand 204" spellcheck="false"><span></span></div>' +
         '<div class="ctl"><span>Via</span><input id="iTaxiVia" list="taxiwayList" placeholder="A B2 C" spellcheck="false"><button class="btn" data-act="taxi">Taxi</button></div>' +
         '<datalist id="taxiToList">' + groundOptions(groundAp).to.map(v => opt(v)).join('') + '</datalist>' +
         '<datalist id="taxiwayList">' + groundOptions(groundAp).via.map(v => opt(v)).join('') + '</datalist>' +
         '</details>' : '') +
+      '<div class="ctl" style="margin-top:8px"><span>Say</span><input id="iSay" maxlength="200" placeholder="free text to ' + esc(a.cs) + '"><button class="btn" data-act="say">Send</button></div>' +
       '<div class="actions">' + ownButton(a) +
       '<button class="btn" data-act="res">Own nav</button>' +
       (others.length ? '<select class="btn" id="iHo" aria-label="Hand off to"><option value="">Hand off to…</option>' + others.map(c => '<option>' + esc(c.cs) + '</option>').join('') + '</select>' : '') +
@@ -683,6 +878,21 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       send({ t: 'instr', to: cs, kind: 'taxi', value: { to, via: val('iTaxiVia').split(/[\s,]+/).filter(Boolean) } });
     }
     if (act === 'qdmDraw') addRbl({ kind: 'ac', cs }, { kind: 'fix', id: $('iQdm').value });
+    const a = st.traffic.find(x => x.cs === cs);
+    if (act === 'rqDo' && a && a.req) reqAction(a, a.req)[1]();
+    if (act === 'rqUnable') send({ t: 'instr', to: cs, kind: 'reply', value: 'unable' });
+    if (act === 'rqStby') send({ t: 'instr', to: cs, kind: 'reply', value: 'standby', keep: true });
+    if (act === 'clr') send({ t: 'instr', to: cs, kind: 'clearance', value: { type: val('iClrType') || 'IFR', dest: val('iClrDest'), sid: val('iClrType') === 'VFR' ? '' : $('iClrSid').value, alt: val('iClrAlt'), sq: val('iClrSq') || 'AUTO' } });
+    const rw = $('iTwrRwy') ? $('iTwrRwy').value : undefined;
+    if (act === 'push') send({ t: 'instr', to: cs, kind: 'pushback', value: '' });
+    if (act === 'lu') send({ t: 'instr', to: cs, kind: 'lineup', value: rw });
+    if (act === 'cto') send({ t: 'instr', to: cs, kind: 'takeoff', value: rw });
+    if (act === 'ctl') send({ t: 'instr', to: cs, kind: 'land', value: rw });
+    if (act === 'ga') send({ t: 'instr', to: cs, kind: 'goaround' });
+    if (act === 'hs') send({ t: 'instr', to: cs, kind: 'holdshort', value: rw });
+    if (act === 'cross') send({ t: 'instr', to: cs, kind: 'cross', value: rw });
+    if (act === 'xrwy') send({ t: 'instr', to: cs, kind: 'rwy', value: rw });
+    if (act === 'say') { const v = $('iSay').value.trim(); if (!v) return sys('Type the message first.', 'err'); send({ t: 'instr', to: cs, kind: 'text', value: v }); $('iSay').value = ''; }
     if (act === 'res') send({ t: 'instr', to: cs, kind: 'resume' });
     if (act === 'own') send({ t: b.dataset.v === 'rel' ? 'release' : 'assume', to: cs });
   });
@@ -692,7 +902,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
   });
   $('selected').addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
-    const map = { iAlt: 'alt', iSpd: 'spd', iFix: 'dct', iSq: 'sq', iTaxiVia: 'taxi', iTaxiTo: 'taxi' }; const act = map[e.target.id];
+    const map = { iAlt: 'alt', iSpd: 'spd', iFix: 'dct', iSq: 'sq', iTaxiVia: 'taxi', iTaxiTo: 'taxi', iSay: 'say', iClrSq: 'clr', iClrAlt: 'clr' }; const act = map[e.target.id];
     if (act) { e.preventDefault(); $('selected').querySelector('[data-act=' + act + ']').click(); }
     if (e.target.id === 'iHdg') { const a = st.traffic.find(x => x.cs === st.selected); const v = Number(e.target.value); if (a && v) send({ t: 'instr', to: a.cs, kind: 'hdg', value: v, dir: G.angleDiff(a.hdg, v) < 0 ? 'L' : 'R' }); }
   });
@@ -952,10 +1162,12 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       else if (a.owner) { ctx.beginPath(); ctx.moveTo(x, y - 5.5); ctx.lineTo(x + 5.5, y); ctx.lineTo(x, y + 5.5); ctx.lineTo(x - 5.5, y); ctx.closePath(); ctx.stroke(); }
       else { ctx.beginPath(); ctx.moveTo(x - 4.5, y); ctx.lineTo(x + 4.5, y); ctx.moveTo(x, y - 4.5); ctx.lineTo(x, y + 4.5); ctx.stroke(); }
       const trend = a.vs > 300 ? '↑' : a.vs < -300 ? '↓' : ' ';
-      const lines = [a.cs + (ho && blink ? ' HO' : ''), fl(a.alt) + trend + (a.cleared && a.cleared.alt ? fl(a.cleared.alt) : '   ') + ' ' + String(Math.round(a.gs / 10)).padStart(2, '0')];
+      const lines = [a.cs + (ho && blink ? ' HO' : '') + (st.rxFrom === a.cs ? ' ◂' : ''), fl(a.alt) + trend + (a.cleared && a.cleared.alt ? fl(a.cleared.alt) : '   ') + ' ' + String(Math.round(a.gs / 10)).padStart(2, '0')];
       if (mine || sel) lines.push(a.type + ' ' + ((a.fp && a.fp.arr) || '') + (a.proc ? ' ' + a.proc : ''));
       if (a.cleared && a.cleared.sq && a.sq !== a.cleared.sq) lines.push('SQ ' + a.sq + '≠' + a.cleared.sq);
+      if (a.req || a.phase) lines[1] += (a.phase ? ' ' + a.phase : '') + (a.req ? ' REQ' : '');
       if (conf) lines.unshift('STCA');
+      if (a.emergency) lines.unshift(a.emergency);
       ctx.font = fontData(12, 500); const lh = 14;
       const wpx = Math.max(...lines.map(s => ctx.measureText(s).width));
       const bh = lines.length * lh;
@@ -969,7 +1181,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx < x ? bx + wpx + 2 : bx - 3, by + 10); ctx.stroke();
       if (sel) { ctx.strokeStyle = C.amber; ctx.lineWidth = 1; ctx.strokeRect(bx - 4, by - 2, wpx + 8, bh + 4); }
       ctx.textAlign = 'left';
-      lines.forEach((s, i) => { ctx.fillStyle = s === 'STCA' || s.startsWith('SQ ') ? C.alert : i === 0 && sel ? C.amber : col; ctx.fillText(s, bx, by + 10 + i * lh); });
+      lines.forEach((s, i) => { ctx.fillStyle = s === 'STCA' || s === 'MAYDAY' || s === 'PAN' || s.startsWith('SQ ') ? C.alert : i === 0 && sel ? C.amber : / REQ$/.test(s) ? C.amber : col; ctx.fillText(s, bx, by + 10 + i * lh); });
       a._hit = { x, y, bx: bx - 4, by: by - 2, bw: wpx + 8, bh: bh + 4 };
     }
     ctx.strokeStyle = C.alert; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;

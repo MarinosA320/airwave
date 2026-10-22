@@ -10,13 +10,14 @@ const path = require('path');
 const WebSocket = require('ws');
 const { TrafficManager } = require('./lib/traffic');
 const { ModelMatcher } = require('./lib/matcher');
+const { REQUEST_GROUPS } = require('./lib/requests');
 
-const VERSION = '0.5.0';
+const VERSION = '0.6.0';
 const UI_PORT = Number(process.env.AIRWAVE_PILOT_PORT || 8090);
 const CONFIG_FILE = process.env.AIRWAVE_PILOT_CONFIG || path.join(__dirname, 'config.json');
 const RULES_FILE = path.join(__dirname, 'matching-rules.json');
 const DEFAULTS = {
-  server: process.env.AIRWAVE_SERVER || 'wss://airwave-lwhv.onrender.com/ws', password: '', callsign: '', name: '', type: 'A20N', sim: 'msfs', xplaneHost: '127.0.0.1',
+  server: process.env.AIRWAVE_SERVER || 'wss://airwave-lwhv.onrender.com/ws', password: '', callsign: '', name: '', type: 'A20N', sim: 'msfs', xplaneHost: '127.0.0.1', stand: '', pttSim: '',
   autoTune: true, fp: { dep: '', arr: '', route: '', cruise: 36000 }
 };
 
@@ -25,7 +26,7 @@ let config = loadConfig();
 const logLines = [];
 const state = {
   net: 'offline', netText: 'Not connected', sim: 'offline', simText: '', plugin: null,
-  own: null, freq: '122.800', atc: [], lastInstr: null, wantOnline: false, callsign: null, mapName: ''
+  own: null, freq: '122.800', atc: [], lastInstr: null, wantOnline: false, callsign: null, mapName: '', atis: {}
 };
 const traffic = new TrafficManager({ maxRange: 80 });
 const matcher = new ModelMatcher({ rulesFile: RULES_FILE, log });
@@ -52,7 +53,7 @@ function startSim() {
   if (config.sim === 'xplane') { const { XPlaneAdapter } = require('./lib/xplane'); sim = new XPlaneAdapter({ host: config.xplaneHost, log }); }
   else if (config.sim === 'demo') { const { DemoSim } = require('./lib/demo-sim'); sim = new DemoSim({ log }); }
   else {
-    try { const { MsfsAdapter } = require('./lib/msfs'); sim = new MsfsAdapter({ matcher, log }); }
+    try { const { MsfsAdapter } = require('./lib/msfs'); sim = new MsfsAdapter({ matcher, log, pttInput: config.pttSim }); }
     catch (e) { log('SimConnect library missing. Run "npm install" in the Airwave folder. (' + e.message + ')'); return; }
   }
   sim.on('status', s => { state.sim = s.connected ? 'online' : 'waiting'; state.simText = s.text; pushState(); });
@@ -64,6 +65,7 @@ function startSim() {
   sim.on('plugin', p => { state.plugin = p; pushState(); });
   sim.on('models', () => pushState());
   sim.on('command', c => onUi(c)); // buttons in the X-Plane panel
+  sim.on('ptt', on => onUi({ t: 'ptt', on }));    // push-to-talk button in the sim
   sim.start();
 }
 traffic.on('add', a => sim && sim.add(a));
@@ -109,7 +111,13 @@ function onServer(m) {
       state.netText = 'Connected as ' + m.callsign + (state.mapName ? ' · ' + state.mapName : '');
       log(state.netText);
       send({ t: 'tune', freq: state.freq });
+      state.atis = {}; (m.atis || []).forEach(a => { state.atis[a.icao] = a; });
       pushState(); break;
+    case 'atis': {
+      const prev = state.atis[m.icao]; state.atis[m.icao] = m;
+      if (prev && prev.letter !== m.letter && [config.fp.dep, config.fp.arr].includes(m.icao)) log(m.icao + ' ATIS is now information ' + m.letter);
+      pushState(); break;
+    }
     case 'traffic':
       state.atc = m.atc || [];
       traffic.update((m.traffic || []).filter(a => a.cs !== state.callsign), state.own);
@@ -118,7 +126,7 @@ function onServer(m) {
       radio.push({ id: ++radioId, from: m.from, text: m.text, freq: m.freq, mine: m.from === state.callsign, system: !!m.system, at: m.at || Date.now() });
       if (radio.length > 40) radio.shift();
       pushPanel();
-      toUi({ t: 'msg', from: m.from, text: m.text, freq: m.freq, private: m.private, system: m.system, mine: m.from === state.callsign, at: m.at || Date.now() });
+      toUi({ t: 'msg', from: m.from, text: m.text, freq: m.freq, private: m.private, system: m.system, atis: !!m.atis, mine: m.from === state.callsign, at: m.at || Date.now() });
       break;
     case 'instr':
       state.lastInstr = { id: ++instrId, from: m.from, kind: m.kind, value: m.value, text: m.text, at: Date.now(), readBack: false };
@@ -127,6 +135,7 @@ function onServer(m) {
       log('ATC ' + m.from + ': ' + m.text);
       toUi({ t: 'instr', instr: state.lastInstr });
       pushState(); break;
+    case 'voice': toUi(m); break; // someone talking on your frequency: played by the Airwave Pilot window
     case 'error':
       log('Server: ' + m.text);
       if (/in use|Callsign must|password/i.test(m.text)) { state.wantOnline = false; state.netText = m.text; }
@@ -145,6 +154,8 @@ function snapshot() {
     t: 'state', version: VERSION, config: Object.assign({}, config, { password: config.password ? '••••••' : '' }), net: state.net, netText: state.netText, sim: state.sim, simText: state.simText,
     plugin: state.plugin ? { models: state.plugin.models || 0 } : null, own: state.own, freq: state.freq, atc: state.atc,
     lastInstr: state.lastInstr, wantOnline: state.wantOnline, traffic: traffic.list().length,
+    atis: [config.fp.dep, config.fp.arr].filter((x, i, a) => x && a.indexOf(x) === i).map(icao => state.atis[icao] || { icao, none: true }),
+    atisFreqs: Object.values(state.atis).filter(a => a.freq).map(a => ({ icao: a.icao, freq: a.freq, letter: a.letter })),
     stats: sim && sim.stats ? sim.stats() : null
   };
 }
@@ -155,7 +166,9 @@ function panelState(since) {
     callsign: state.callsign || config.callsign || '', net: state.net, netText: state.netText, sim: state.sim, simText: state.simText,
     freq: state.freq, station: atcHere ? atcHere.name : (state.freq === '122.800' ? 'UNICOM' : 'No ATC on this frequency'),
     instr: state.lastInstr, atc: state.atc.map(c => ({ id: c.cs || c.facility, name: c.name, freq: c.freq })),
-    msgs: radio.filter(r => r.id > (since || 0)).slice(-12), lastMsg: radioId, squawk: state.own ? state.own.squawk : null
+    msgs: radio.filter(r => r.id > (since || 0)).slice(-12), lastMsg: radioId, squawk: state.own ? state.own.squawk : null,
+    atisFreqs: Object.values(state.atis).filter(a => a.freq).map(a => ({ icao: a.icao, freq: a.freq, letter: a.letter })),
+    atis: [config.fp.dep, config.fp.arr].filter(Boolean).map(icao => state.atis[icao]).filter(Boolean).map(a => ({ icao: a.icao, letter: a.letter, freq: a.freq }))
   };
 }
 function pushPanel() { if (sim && sim.panel) sim.panel(panelState(radioId - 6)); }
@@ -169,12 +182,13 @@ function onUi(m) {
     case 'config': {
       const prevSim = config.sim, prevHost = config.xplaneHost;
       const c = m.config || {};
-      for (const k of ['server', 'password', 'callsign', 'name', 'type', 'sim', 'xplaneHost']) if (typeof c[k] === 'string' && !(k === 'password' && c[k] === '••••••')) config[k] = c[k].trim();
+      const prevPtt = config.pttSim;
+      for (const k of ['server', 'password', 'callsign', 'name', 'type', 'sim', 'xplaneHost', 'stand', 'pttSim']) if (typeof c[k] === 'string' && !(k === 'password' && c[k] === '••••••')) config[k] = c[k].trim();
       if (typeof c.autoTune === 'boolean') config.autoTune = c.autoTune;
       config.callsign = config.callsign.toUpperCase(); config.type = config.type.toUpperCase();
       if (c.fp) config.fp = { dep: String(c.fp.dep || '').toUpperCase(), arr: String(c.fp.arr || '').toUpperCase(), route: String(c.fp.route || '').toUpperCase(), cruise: Number(c.fp.cruise) || 0 };
       saveConfig();
-      if (config.sim !== prevSim || config.xplaneHost !== prevHost) startSim();
+      if (config.sim !== prevSim || config.xplaneHost !== prevHost || (config.sim === 'msfs' && config.pttSim !== prevPtt)) startSim();
       if (state.net === 'online') sendFlightPlan();
       break;
     }
@@ -182,6 +196,28 @@ function onUi(m) {
     case 'disconnect': state.wantOnline = false; connect(); state.net = 'offline'; state.netText = 'Disconnected'; break;
     case 'tune': if (/^1[1-3]\d\.\d{3}$/.test(m.freq)) tune(m.freq, 'panel'); break;
     case 'send': { const text = String(m.text || '').trim().slice(0, 240); if (text) send({ t: 'msg', freq: state.freq, text }); break; }
+    case 'req': {
+      // Requests and replies: the server words them. Initial calls carry your stand and the ATIS letter you have.
+      const kind = String(m.kind || '');
+      if (!REQUEST_GROUPS.some(g => g.items.some(i => i.kind === kind))) break;
+      const onGround = state.own ? state.own.onGround : true;
+      const a = state.atis[onGround ? config.fp.dep : config.fp.arr];
+      send({ t: 'req', kind, value: m.value == null ? '' : String(m.value).slice(0, 60), stand: onGround ? config.stand : '', atis: a ? a.letter : '' });
+      break;
+    }
+    case 'voice': {
+      // Your microphone, from the Airwave Pilot window, while push-to-talk is held.
+      if (state.net !== 'online') break;
+      if (m.end) { send({ t: 'voice', end: true }); break; }
+      if (typeof m.data === 'string' && m.data.length <= 12000) send({ t: 'voice', seq: Number(m.seq) || 0, rate: m.rate === 8000 ? 8000 : 16000, data: m.data });
+      break;
+    }
+    case 'ptt': {
+      const open = [...uiClients].some(c => c.readyState === 1);
+      if (!open && m.on) log('Push-to-talk needs the Airwave Pilot window open in your browser (it uses the microphone).');
+      toUi({ t: 'ptt', on: !!m.on });
+      return; // no state push needed
+    }
     case 'installAddons': {
       const report = require('./install-addons').installAddons();
       report.forEach(r => log('Sim panels: ' + r.sim + ': ' + r.text));
@@ -202,13 +238,15 @@ function onUi(m) {
 
 const UI_FILE = path.join(__dirname, 'ui.html');
 const PANEL_FILE = path.join(__dirname, 'panel.html');
-const PANEL_COMMANDS = ['connect', 'disconnect', 'tune', 'send', 'readback'];
+const PANEL_COMMANDS = ['connect', 'disconnect', 'tune', 'send', 'readback', 'req'];
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const cors = { 'access-control-allow-origin': '*', 'cache-control': 'no-store' };
   if (url.pathname === '/' || url.pathname === '/index.html') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return fs.createReadStream(UI_FILE).pipe(res); }
   // The in-sim panel: a small page the MSFS toolbar panel shows, polling /api/panel (the sim's browser is old, so no WebSockets)
   if (url.pathname === '/panel') { res.writeHead(200, Object.assign({ 'content-type': 'text/html; charset=utf-8' }, cors)); return fs.createReadStream(PANEL_FILE).pipe(res); }
+  if (url.pathname === '/voice.js') { res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' }); return fs.createReadStream(path.join(__dirname, '..', 'shared', 'airwave-voice.js')).pipe(res); }
+  if (url.pathname === '/api/requests') { res.writeHead(200, Object.assign({ 'content-type': 'application/json' }, cors)); return res.end(JSON.stringify(REQUEST_GROUPS)); }
   if (url.pathname === '/api/panel') { res.writeHead(200, Object.assign({ 'content-type': 'application/json' }, cors)); return res.end(JSON.stringify(panelState(Number(url.searchParams.get('since')) || 0))); }
   if (url.pathname === '/api/cmd' && req.method === 'OPTIONS') { res.writeHead(204, Object.assign({ 'access-control-allow-headers': 'content-type', 'access-control-allow-methods': 'POST' }, cors)); return res.end(); }
   if (url.pathname === '/api/cmd' && req.method === 'POST') {

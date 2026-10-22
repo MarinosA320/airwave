@@ -182,7 +182,7 @@ struct Panel {
 };
 static Panel gPanel;
 static XPLMWindowID gWin = nullptr;
-static XPLMCommandRef gCmdToggle = nullptr, gCmdReadback = nullptr;
+static XPLMCommandRef gCmdToggle = nullptr, gCmdReadback = nullptr, gCmdPtt = nullptr;
 static int gLastInstrShown = 0;
 struct Button { int l, t, r, b; std::string action; };
 static std::vector<Button> gButtons;
@@ -263,8 +263,14 @@ static void DrawPanel(XPLMWindowID id, void*) {
         if (gPanel.instr.readBack) { Text(COL_GREEN, x, y - 13, "Read back"); y -= 26; }
         else {
             DrawButton(x, y, gPanel.instr.contactFreq.empty() ? "Read back" : "Read back and switch to " + gPanel.instr.contactFreq, "readback", COL_AMBER, width);
-            y -= 28;
+            y -= 26;
         }
+        // Quick replies
+        const char* labels[] = { "Wilco", "Unable", "Say again", "Standby" };
+        const char* kinds[] = { "wilco", "unable", "sayagain", "standby" };
+        const int qw = (width - 3 * 4) / 4;
+        for (int q = 0; q < 4; q++) DrawButton(x + q * (qw + 4), y, labels[q], std::string("req ") + kinds[q], COL_TEXT, qw);
+        y -= 28;
     }
     // radio messages (newest last)
     Text(COL_MUTED, x, y, "RADIO"); y -= lh;
@@ -308,6 +314,12 @@ static int OnCommand(XPLMCommandRef cmd, XPLMCommandPhase phase, void*) {
     if (phase != xplm_CommandBegin) return 0;
     if (cmd == gCmdToggle && gWin) XPLMSetWindowIsVisible(gWin, !XPLMGetWindowIsVisible(gWin));
     if (cmd == gCmdReadback && gPanel.instr.id && !gPanel.instr.readBack) SendCommand("readback");
+    return 0;
+}
+// Push-to-talk: held down = transmitting. Airwave Pilot passes it on to its window, which has the microphone.
+static int OnPtt(XPLMCommandRef, XPLMCommandPhase phase, void*) {
+    if (phase == xplm_CommandBegin) SendCommand("ptt 1");
+    else if (phase == xplm_CommandEnd) SendCommand("ptt 0");
     return 0;
 }
 
@@ -379,6 +391,8 @@ PLUGIN_API int XPluginStart(char* name, char* sig, char* desc) {
     // Panel commands (bindable to keys and joystick buttons) and the Plugins > Airwave menu
     gCmdToggle = XPLMCreateCommand("airwave/toggle_panel", "Airwave: show or hide the ATC panel");
     gCmdReadback = XPLMCreateCommand("airwave/readback", "Airwave: read back the last ATC instruction");
+    gCmdPtt = XPLMCreateCommand("airwave/ptt", "Airwave: push to talk (hold)");
+    XPLMRegisterCommandHandler(gCmdPtt, OnPtt, 1, nullptr);
     XPLMRegisterCommandHandler(gCmdToggle, OnCommand, 1, nullptr);
     XPLMRegisterCommandHandler(gCmdReadback, OnCommand, 1, nullptr);
     int item = XPLMAppendMenuItem(XPLMFindPluginsMenu(), "Airwave", nullptr, 0);
@@ -409,6 +423,7 @@ PLUGIN_API void XPluginDisable() {
 PLUGIN_API void XPluginStop() {
     XPLMUnregisterCommandHandler(gCmdToggle, OnCommand, 1, nullptr);
     XPLMUnregisterCommandHandler(gCmdReadback, OnCommand, 1, nullptr);
+    XPLMUnregisterCommandHandler(gCmdPtt, OnPtt, 1, nullptr);
     XPMPMultiplayerCleanup();
 }
 PLUGIN_API void XPluginReceiveMessage(XPLMPluginID, int, void*) {}

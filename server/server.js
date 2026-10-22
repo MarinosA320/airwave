@@ -50,7 +50,21 @@ const baseMap = loadMap(MAP_NAME);
 const OVERLAY_FILE = path.join(ROOT, OVERLAY_PATH);
 let overlay = null;
 try { overlay = JSON.parse(fs.readFileSync(OVERLAY_FILE, 'utf8')); } catch { overlay = null; }
-let map = Airwave.registerMap(Airwave.applyOverlay(baseMap, MAP_NAME === 'london' ? null : overlay));
+// Taxiway layouts let simulated traffic push back, taxi and park. They ride along on the map (not sent to clients).
+const groundLayouts = new Map();
+function attachLayouts(m) {
+  for (const ap of m.airports) {
+    if (!groundLayouts.has(ap.icao)) {
+      let L = null;
+      try { L = JSON.parse(fs.readFileSync(path.join(LAYOUT_DIR, ap.icao + '.json'), 'utf8')); } catch { L = null; }
+      groundLayouts.set(ap.icao, L);
+    }
+    const L = groundLayouts.get(ap.icao);
+    if (L) { Object.defineProperty(ap, 'ground', { value: L, writable: true, configurable: true, enumerable: false }); Airwave.refineRunways(ap); }
+  }
+  return m;
+}
+let map = attachLayouts(Airwave.registerMap(Airwave.applyOverlay(baseMap, MAP_NAME === 'london' ? null : overlay)));
 let mapJson = '';
 // Layouts are served separately, so the map file stays small.
 const serializeMap = m => JSON.stringify(m, (k, v) => (k === 'fixIndex' || k === 'cfg' || k === 'layout' ? undefined : v));
@@ -60,7 +74,7 @@ const BOTS = Number(opt('bots', process.env.AIRWAVE_BOTS != null && process.env.
 const hub = new Airwave.Hub({ sector: map, log, password: PASSWORD, atcPassword: ATC_PASSWORD });
 function useOverlay(ov, why) {
   overlay = ov;
-  map = Airwave.registerMap(Airwave.applyOverlay(baseMap, ov));
+  map = attachLayouts(Airwave.registerMap(Airwave.applyOverlay(baseMap, ov)));
   mapJson = serializeMap(map);
   hub.setMap(map);
   log(`Map edits applied (revision ${ov ? ov.rev : 0}${why ? ', ' + why : ''})`);
@@ -144,6 +158,27 @@ async function handleSave(req, res) {
   if (gh.saved) log('Map edit r' + ov.rev + ' committed to GitHub ' + (gh.commit || '').slice(0, 7));
   return json(res, { ok: true, rev: ov.rev, github: gh });
 }
+// ------------------------------------------------------------ real weather (METAR) for ATIS and wind in clearances
+// From aviationweather.gov every 10 minutes. Without it, ATIS uses simulated weather and says so.
+const METAR_URL = 'https://aviationweather.gov/api/data/metar?format=json&ids=';
+async function fetchMetars() {
+  const ids = map.airports.filter(a => a.scheduled !== false || a.atis).map(a => a.icao);
+  for (let i = 0; i < ids.length; i += 40) {
+    try {
+      const res = await fetch(METAR_URL + ids.slice(i, i + 40).join(','), { headers: { 'user-agent': 'Airwave/' + Airwave.VERSION }, signal: AbortSignal.timeout(15000) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const list = await res.json();
+      for (const m of Array.isArray(list) ? list : []) {
+        if (!m.icaoId) continue;
+        hub.setWeather(m.icaoId, { raw: m.rawOb, wdir: m.wdir, wspd: m.wspd, wgst: m.wgst, visib: m.visib === '10+' ? 10 : Number(m.visib), qnh: m.altim, temp: m.temp, dewp: m.dewp,
+          clouds: (m.clouds || []).map(c => ({ cover: c.cover, base: c.base })) });
+      }
+      if (i === 0) log('Weather: ' + list.length + ' METARs from aviationweather.gov');
+    } catch (e) { log('Weather: could not get METARs (' + e.message + '), using simulated weather'); return; }
+  }
+}
+if (MAP_NAME !== 'london' && process.env.AIRWAVE_METAR !== 'off') { fetchMetars(); setInterval(fetchMetars, 10 * 60 * 1000).unref(); }
+
 if (BOTS !== 0) hub.addSource(new Airwave.SimTrafficSource(BOTS > 0 ? { count: BOTS } : {}));
 
 // The scope page is written as a fragment so the same file can be published as a standalone demo.
@@ -169,9 +204,9 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     return res.end(scopePage());
   }
-  if (p === '/shared/airwave-core.js') {
+  if (p === '/shared/airwave-core.js' || p === '/shared/airwave-voice.js') {
     res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
-    return fs.createReadStream(path.join(ROOT, 'shared', 'airwave-core.js')).pipe(res);
+    return fs.createReadStream(path.join(ROOT, 'shared', path.basename(p))).pipe(res);
   }
   if (p === '/map.json') return json(res, mapJson);
   if (p === '/base-map.json') return json(res, serializeMap(baseMap));

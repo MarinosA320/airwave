@@ -45,6 +45,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .atc button.on { border-color: #7fd4f0; color: #7fd4f0; }
 .atc button span { font-family: Consolas, monospace; color: #7d939a; margin-left: 5px; }
 .empty { color: #7d939a; font-size: 13px; padding: 2px 0 8px; }
+.quick { display: flex; margin-top: 6px; }
+.quick button { flex: 1; background: #172227; border: 1px solid #34525d; padding: 6px 2px; margin-right: 4px; font-size: 13px; }
+.quick button:last-child { margin-right: 0; }
+.reqrow { display: flex; padding: 0 10px 8px; }
+.reqrow select, .reqrow input { background: #172227; border: 1px solid #24333a; color: #d6e2e5; padding: 6px; font: inherit; font-size: 13px; min-width: 0; }
+.reqrow select { flex: 1.4; }
+.reqrow input { flex: 1; margin-left: 5px; }
+.reqrow .btn { margin-left: 5px; }
 .offline { padding: 20px 14px; color: #7d939a; line-height: 1.45; }
 </style>
 </head>
@@ -62,7 +70,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <div class="from" id="instrFrom"></div>
     <div class="text" id="instrText"></div>
     <button class="btn primary" id="rb">Read back</button>
+    <div class="quick"><button data-q="wilco">Wilco</button><button data-q="unable">Unable</button><button data-q="sayagain">Say again</button><button data-q="standby">Standby</button></div>
   </div>
+  <div class="section">Request</div>
+  <div class="reqrow"><select id="reqKind"></select><input id="reqVal" autocomplete="off"><button class="btn" id="reqSend">Send</button></div>
   <div class="section">Radio</div>
   <div class="log" id="log"><div class="empty">Messages on your frequency appear here.</div></div>
   <div class="say"><input id="say" maxlength="240" placeholder="Message on frequency" autocomplete="off"><button class="btn" id="send">Send</button></div>
@@ -130,6 +141,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
       var c = s.atc[a];
       html += '<button data-f="' + esc(c.freq) + '" class="' + (c.freq === s.freq ? 'on' : '') + '">' + esc(c.id) + '<span>' + esc(c.freq) + '</span></button>';
     }
+    var at = s.atisFreqs || [];
+    for (var q = 0; q < at.length; q++) html += '<button data-f="' + esc(at[q].freq) + '" class="' + (at[q].freq === s.freq ? 'on' : '') + '">' + esc(at[q].icao) + ' ATIS ' + esc(at[q].letter.charAt(0)) + '<span>' + esc(at[q].freq) + '</span></button>';
     $('atc').innerHTML = html || '<div class="empty">No controllers online.</div>';
   }
   $('atc').onclick = function (e) { var b = e.target; while (b && b.tagName !== 'BUTTON') b = b.parentNode; if (b && b.getAttribute('data-f')) cmd({ t: 'tune', freq: b.getAttribute('data-f') }); };
@@ -137,6 +150,32 @@ button { font: inherit; color: inherit; cursor: pointer; }
   $('conn').onclick = function () { cmd({ t: state && state.net !== 'offline' ? 'disconnect' : 'connect' }); };
   function say() { var v = $('say').value.replace(/^\s+|\s+$/g, ''); if (!v) return; cmd({ t: 'send', text: v }); $('say').value = ''; }
   $('send').onclick = say;
+  // Requests and quick replies (the list comes from Airwave Pilot)
+  var REQ = [];
+  function reqChanged() {
+    var k = $('reqKind').value, d = null;
+    for (var i = 0; i < REQ.length; i++) if (REQ[i].kind === k) d = REQ[i];
+    if (!d) return;
+    $('reqVal').style.display = d.arg ? '' : 'none'; $('reqVal').placeholder = d.hint || ''; $('reqVal').value = '';
+  }
+  req('GET', '/api/requests', null, function (groups) {
+    if (!groups) return;
+    var html = '';
+    for (var g = 0; g < groups.length; g++) {
+      html += '<optgroup label="' + esc(groups[g].group) + '">';
+      for (var i = 0; i < groups[g].items.length; i++) { var it = groups[g].items[i]; REQ.push(it); html += '<option value="' + it.kind + '">' + esc(it.label) + '</option>'; }
+      html += '</optgroup>';
+    }
+    $('reqKind').innerHTML = html; reqChanged();
+  });
+  $('reqKind').onchange = reqChanged;
+  $('reqSend').onclick = function () { cmd({ t: 'req', kind: $('reqKind').value, value: $('reqVal').style.display === 'none' ? '' : $('reqVal').value }); $('reqVal').value = ''; };
+  var qs = document.querySelectorAll('[data-q]');
+  for (var qi = 0; qi < qs.length; qi++) qs[qi].onclick = function () {
+    var k = this.getAttribute('data-q');
+    if (k === 'unable') { $('reqKind').value = 'unable'; reqChanged(); $('reqVal').value = 'due to performance'; $('reqVal').focus(); return; }
+    cmd({ t: 'req', kind: k });
+  };
   $('say').onkeydown = function (e) { if (e.keyCode === 13) say(); };
   poll();
 })();

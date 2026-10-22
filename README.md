@@ -181,6 +181,45 @@ so it works on the server and GitHub Pages scope but not in offline copies.
 departures 03R), then **Apply**. Every controller sees the change, STARs, approaches and SIDs on the scope follow it, and simulated traffic
 uses those runways. A protocol message does the same: `{"t":"runways","icao":"LGAV","arr":["03L","03R"],"dep":["03R"]}`.
 
+## Radio: clearances, requests, voice and ATIS
+
+**Controllers** (selected aircraft panel, or the command line):
+
+| Command | Meaning |
+| --- | --- |
+| `CLR [SID] [FL60]` / `VFR [A35]` | IFR clearance (destination from the flight plan, free squawk) / VFR clearance |
+| `PUSH` | Push back and start-up approved |
+| `LU [03R]` / `CTO [03R]` | Line up and wait / cleared for take-off (with the current wind) |
+| `CTL [03R]` / `GA` | Cleared to land / go around |
+| `HS 03R` / `CROSS 03R` / `RWY 03L` | Hold short / cross / expect runway |
+| `VIS` | Cleared visual approach |
+| `SAY text` | Free-text instruction (the pilot gets a read back button) |
+| `OK` / `UNABLE` / `STBY` | Answer the aircraft's pending request: approve it, refuse it, or ask it to wait |
+
+**Pilots** can request, from Airwave Pilot or the in-sim panel:
+- IFR or VFR clearance, start-up, taxi, another taxiway, an intersection departure;
+- another runway, SID, STAR or approach, or a visual approach;
+- a climb, a descent, a direct, a heading for weather, no speed restriction, or "confirm no speed restriction";
+- check in, established, going around, cancel IFR.
+
+Replies are Wilco, Unable (with a reason), Say again and Standby, and there are PAN PAN and MAYDAY calls.
+Each request is worded properly and sent on frequency. The controller sees it in **Requests**, on the radar tag (`REQ`), and in the
+selected-aircraft panel, with a one-click answer.
+
+**Simulated traffic** now uses the airport layouts. It pushes back from stands, taxis on real taxiways, holds short, lines up, takes off, lands,
+rolls out, vacates (turning around on runways without a parallel taxiway) and taxis to a free stand.
+When a controller covers an aircraft, it calls for clearance, start-up, taxi and take-off, reports established on final, and waits for each answer.
+It goes around if it isn't cleared to land by short final.
+
+**Voice:** hold **PTT** (a button, or a key you choose) in the scope or in Airwave Pilot. Everyone on the same frequency hears you through a radio filter.
+In the sim, push-to-talk can be a joystick button: in MSFS, set it in Airwave Pilot (for example `joystick:0:button:3`);
+in X-Plane, bind the `airwave/ptt` command. Voice uses the microphone of the Airwave Pilot browser window, so keep that window open.
+**Read text aloud** speaks typed messages and the simulated pilots.
+
+**ATIS** runs at airports with a published ATIS frequency (LGAV 136.125, LGTS and LGIR 127.550, LGRP and LGKR 126.350, LGKO 126.950).
+Tune it to hear it, or read it in Airwave Pilot. It uses the real METAR from aviationweather.gov, the runways in use, and the remarks
+controllers add, and it moves to the next letter whenever any of these change. Controllers' **Online** list shows every active frequency.
+
 ## Sector editor
 
 Open `https://<your server>/editor` (or **Edit map** in the scope). It edits the live map:
@@ -217,6 +256,7 @@ node tools/test-procedures.js    simulated pilots fly STARs, approaches and SIDs
 node tools/test-layouts.js       OpenStreetMap layout conversion
 node tools/test-editor.js        sector editor saves, map reloads and runway changes (starts its own server)
 node tools/test-panel.js         in-sim panels: X-Plane link, MSFS panel package, add-on installer
+node tools/test-ground.js        ground traffic, controller exchanges, requests, ATIS and voice relay
 ```
 
 ## Protocol

@@ -55,6 +55,15 @@ h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .12em; 
 .atc button { background: var(--panel-2); border: 1px solid var(--line); padding: 5px 9px; cursor: pointer; font-family: var(--f-data); font-size: 12.5px; text-align: left; }
 .atc button.on { border-color: var(--mine); color: var(--mine); }
 .atc button small { display: block; font-family: var(--f-ui); color: var(--muted); font-size: 11.5px; }
+.req { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 6px; }
+.req select, .req input { background: var(--panel-2); border: 1px solid var(--line); padding: 7px 8px; font-family: var(--f-data); font-size: 13px; min-width: 0; color: var(--text); }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.quick .btn.emg { border-color: #ff6a5a; color: #ff6a5a; }
+.atisbox { font-family: var(--f-data); font-size: 12.5px; line-height: 1.45; color: var(--muted); margin: 0 0 8px; }
+.atisbox b { color: var(--amber); }
+.ptt { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ptt .btn.on { background: #ff6a5a; border-color: #ff6a5a; color: #fff; }
+.ptt .rx { font-family: var(--f-data); font-size: 12.5px; color: #72d39d; }
 .instr { border: 1px solid var(--amber); padding: 12px 14px; display: grid; gap: 8px; }
 .instr[hidden] { display: none; }
 .instr .from { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); }
@@ -109,6 +118,7 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
         <label class="field">To<input id="arr" maxlength="4" placeholder="LGTS"></label>
         <label class="field">Cruise (ft)<input id="cruise" inputmode="numeric" placeholder="34000"></label>
         <label class="field wide">Route<input id="route" placeholder="DCT"></label>
+        <label class="field">Stand (optional)<input id="stand" maxlength="6" placeholder="B12"></label>
       </div>
     </section>
     <button class="primary" id="connectBtn">Connect</button>
@@ -140,7 +150,34 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
     <section class="instr" id="instr" hidden>
       <div class="from" id="instrFrom"></div>
       <div class="text" id="instrText"></div>
-      <div><button class="btn" id="readback">Read back</button></div>
+      <div class="quick"><button class="btn" id="readback">Read back</button><button class="btn" data-q="wilco">Wilco</button><button class="btn" data-q="unable">Unable</button><button class="btn" data-q="sayagain">Say again</button><button class="btn" data-q="standby">Standby</button></div>
+    </section>
+    <section>
+      <h2>Voice</h2>
+      <div class="ptt">
+        <button class="btn" id="pttBtn" type="button" title="Hold to talk">PTT</button>
+        <button class="btn" id="pttKey" type="button" title="Choose a key for push-to-talk while this window has the focus">Key: <span id="pttKeyName"></span></button>
+        <input type="range" id="vol" min="0" max="1" step="0.05" value="0.9" aria-label="Radio volume" style="width:90px">
+        <span class="rx" id="rxInd"></span>
+      </div>
+      <label class="check" style="margin-top:8px"><input type="checkbox" id="ttsOn"> Read ATC text messages and ATIS aloud</label>
+      <label class="field" id="pttSimField" style="margin-top:8px">Push-to-talk in MSFS (joystick button or key)<input id="pttSim" placeholder="joystick:0:button:3" spellcheck="false"></label>
+      <p class="hint" style="margin-top:6px">Voice uses this window's microphone, so keep it open (it can stay behind the sim). In X-Plane, bind the command airwave/ptt to a key or button.
+        In MSFS, enter a joystick button as joystick:0:button:3 (device, button) or a key like VK_RCONTROL.</p>
+    </section>
+    <section>
+      <h2>Request</h2>
+      <form class="req" id="reqForm" autocomplete="off">
+        <select id="reqKind" aria-label="Request"></select>
+        <input id="reqVal" list="reqOpts" spellcheck="false" aria-label="Value">
+        <button class="btn">Send</button>
+        <datalist id="reqOpts"></datalist>
+      </form>
+      <p class="hint" id="reqHint" style="margin-top:6px">Requests are worded for you and sent on your frequency. The controller sees them with one-click answers.</p>
+    </section>
+    <section>
+      <h2>ATIS</h2>
+      <div id="atisList"><p class="hint">Connect to see the ATIS for your departure and destination.</p></div>
     </section>
     <section>
       <h2>Radio</h2>
@@ -160,6 +197,7 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
     </section>
   </div>
 </main>
+<script src="/voice.js"></script>
 <script>
 (function () {
   'use strict';
@@ -177,11 +215,40 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
     ws.onmessage = e => {
       const m = JSON.parse(e.data);
       if (m.t === 'state') render(m); else if (m.t === 'msg') msg(m); else if (m.t === 'log') applog(m.line);
+      else if (m.t === 'voice') { if (voice) voice.receive(m); }
+      else if (m.t === 'ptt') { if (voice) voice.ptt(m.on); }
       else if (m.t === 'addons') { $('addonsBtn').disabled = false; $('addonsOut').innerHTML = m.report.map(r => '<li>' + (r.ok === true ? '✓ ' : r.ok === false ? '✕ ' : '') + esc(r.sim + ': ' + r.text) + '</li>').join(''); }
     };
     ws.onclose = () => { $('netText').textContent = 'Lost contact with Airwave Pilot. Is it still running?'; setTimeout(connectUi, 2000); };
   }
   const send = m => ws && ws.readyState === 1 && ws.send(JSON.stringify(m));
+  // ---------------- voice: push-to-talk with this window's microphone; incoming speech through a radio filter
+  const store = { get(k, d) { try { const v = localStorage.getItem('airwave.pilot.' + k); return v == null ? d : v; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('airwave.pilot.' + k, v); } catch (e) { /* off */ } } };
+  const voice = window.AirwaveVoice ? new window.AirwaveVoice({
+    send: m => send(m),
+    onState: v => {
+      if (v.error) applog(v.error);
+      if ('tx' in v) { $('pttBtn').classList.toggle('on', v.tx); $('pttBtn').textContent = v.tx ? 'TX ' + (st ? st.freq : '') : 'PTT'; }
+      if ('rx' in v) $('rxInd').textContent = v.rx ? 'RX ' + v.rx : '';
+    }
+  }) : null;
+  let pttCode = store.get('pttKey', 'ControlLeft'), pickingKey = false;
+  const keyName = c => c.replace(/^Key/, '').replace(/^Digit/, '').replace('ControlLeft', 'Left Ctrl').replace('ControlRight', 'Right Ctrl').replace('ShiftLeft', 'Left Shift').replace('ShiftRight', 'Right Shift').replace('AltRight', 'Right Alt');
+  $('pttKeyName').textContent = keyName(pttCode);
+  $('ttsOn').checked = store.get('tts', '0') === '1'; $('ttsOn').onchange = () => store.set('tts', $('ttsOn').checked ? '1' : '0');
+  $('vol').value = store.get('vol', '0.9'); if (voice) voice.setVolume(Number($('vol').value));
+  $('vol').oninput = () => { if (voice) voice.setVolume(Number($('vol').value)); store.set('vol', $('vol').value); };
+  $('pttKey').onclick = () => { pickingKey = true; $('pttKeyName').textContent = 'press a key…'; };
+  const pttOk = () => { if (!st || st.net !== 'online') { applog('Connect to the network to talk.'); return false; } return !!voice; };
+  $('pttBtn').addEventListener('pointerdown', e => { e.preventDefault(); if (pttOk()) voice.ptt(true); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => $('pttBtn').addEventListener(ev, () => voice && voice.ptt(false)));
+  document.addEventListener('keydown', e => {
+    if (pickingKey) { e.preventDefault(); pickingKey = false; pttCode = e.code; store.set('pttKey', pttCode); $('pttKeyName').textContent = keyName(pttCode); return; }
+    if (e.code !== pttCode || e.repeat) return;
+    if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '') && !/Control|Shift|Alt|Meta|F\d/.test(pttCode)) return;
+    e.preventDefault(); if (pttOk()) voice.ptt(true);
+  }, true);
+  document.addEventListener('keyup', e => { if (e.code === pttCode && voice) voice.ptt(false); }, true);
 
   function render(s) {
     const first = !st; st = s;
@@ -199,8 +266,12 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
     $('freq').textContent = s.freq;
     const here = s.atc.find(c => c.freq === s.freq);
     $('freqName').textContent = here ? here.name + ' (' + here.cs + ')' : s.freq === '122.800' ? 'Unicom' : 'No controller on this frequency';
-    $('atc').innerHTML = s.atc.length ? s.atc.map(c => '<button data-f="' + esc(c.freq) + '" class="' + (c.freq === s.freq ? 'on' : '') + '">' + esc(c.cs) + ' ' + esc(c.freq) + '<small>' + esc(c.name) + '</small></button>').join('')
-      : '<span class="hint">No controllers online.</span>';
+    $('atc').innerHTML = (s.atc.length ? s.atc.map(c => '<button data-f="' + esc(c.freq) + '" class="' + (c.freq === s.freq ? 'on' : '') + '">' + esc(c.cs) + ' ' + esc(c.freq) + '<small>' + esc(c.name) + '</small></button>').join('')
+      : '<span class="hint">No controllers online.</span>') +
+      (s.atisFreqs || []).map(a => '<button data-f="' + esc(a.freq) + '" class="' + (a.freq === s.freq ? 'on' : '') + '">' + esc(a.icao) + '_ATIS ' + esc(a.freq) + '<small>information ' + esc(a.letter) + '</small></button>').join('');
+    if (here === undefined && (s.atisFreqs || []).some(a => a.freq === s.freq)) $('freqName').textContent = 'ATIS';
+    $('atisList').innerHTML = s.net !== 'online' ? '<p class="hint">Connect to see the ATIS for your departure and destination.</p>' : (s.atis || []).map(a => a.none ? '<p class="atisbox">' + esc(a.icao) + ': no ATIS.</p>' :
+      '<p class="atisbox"><b>' + esc(a.icao) + ' information ' + esc(a.letter) + '</b>' + (a.freq ? ' · <button class="btn" data-f="' + esc(a.freq) + '" style="padding:1px 6px">' + esc(a.freq) + '</button>' : '') + '<br>' + esc(a.text) + '</p>').join('') || '<p class="hint">Enter your departure and destination to see their ATIS.</p>';
     const i = s.lastInstr;
     $('instr').hidden = !i || Date.now() - i.at > 120000;
     if (i) { $('instrFrom').textContent = i.from + (i.kind === 'contact' ? ' · contact' : ''); $('instrText').textContent = i.text; }
@@ -211,7 +282,8 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
   }
   function pill(id, cls, text) { $(id).className = 'pill ' + (cls || ''); $(id + 'T').textContent = text; }
   function fillForm(c) {
-    ['callsign', 'type', 'server', 'password', 'xplaneHost'].forEach(k => { $(k).value = c[k] || ''; });
+    ['callsign', 'type', 'server', 'password', 'xplaneHost', 'stand', 'pttSim'].forEach(k => { $(k).value = c[k] || ''; });
+    $('pttSimField').hidden = c.sim !== 'msfs';
     $('dep').value = c.fp.dep || ''; $('arr').value = c.fp.arr || ''; $('route').value = c.fp.route || ''; $('cruise').value = c.fp.cruise || '';
     $('autoTune').checked = !!c.autoTune;
     document.querySelectorAll('[data-sim]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sim === c.sim));
@@ -219,18 +291,37 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
     $('simHint').textContent = SIM_HINT[c.sim] || '';
   }
   function saveForm(sim) {
-    const c = { callsign: $('callsign').value, type: $('type').value, server: $('server').value, password: $('password').value, xplaneHost: $('xplaneHost').value || '127.0.0.1',
+    const c = { callsign: $('callsign').value, type: $('type').value, server: $('server').value, password: $('password').value, xplaneHost: $('xplaneHost').value || '127.0.0.1', stand: $('stand').value, pttSim: $('pttSim').value,
       autoTune: $('autoTune').checked, sim: sim || st.config.sim, fp: { dep: $('dep').value, arr: $('arr').value, route: $('route').value, cruise: $('cruise').value } };
     send({ t: 'config', config: c });
   }
   document.querySelectorAll('[data-sim]').forEach(b => b.onclick = () => saveForm(b.dataset.sim));
   document.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('focus', () => { editing = true; });
-    inp.addEventListener('blur', () => { editing = false; if (inp.id !== 'txt') saveForm(); });
-    inp.addEventListener('change', () => { if (inp.id !== 'txt') saveForm(); });
+    inp.addEventListener('blur', () => { editing = false; if (inp.id !== 'txt' && inp.id !== 'reqVal') saveForm(); });
+    inp.addEventListener('change', () => { if (inp.id !== 'txt' && inp.id !== 'reqVal') saveForm(); });
   });
   $('connectBtn').onclick = () => { saveForm(); send({ t: st && st.wantOnline ? 'disconnect' : 'connect' }); };
   $('atc').onclick = e => { const b = e.target.closest('[data-f]'); if (b) send({ t: 'tune', freq: b.dataset.f }); };
+  $('atisList').onclick = e => { const b = e.target.closest('[data-f]'); if (b) send({ t: 'tune', freq: b.dataset.f }); };
+  // Requests: the list comes from Airwave Pilot, so it is the same in the in-sim panel.
+  let REQ = [];
+  fetch('/api/requests').then(r => r.json()).then(groups => {
+    REQ = groups.flatMap(g => g.items);
+    $('reqKind').innerHTML = groups.map(g => '<optgroup label="' + esc(g.group) + '">' + g.items.map(i => '<option value="' + i.kind + '">' + esc(i.label) + '</option>').join('') + '</optgroup>').join('');
+    reqChanged();
+  }).catch(() => {});
+  function reqChanged() {
+    const d = REQ.find(i => i.kind === $('reqKind').value); if (!d) return;
+    $('reqVal').hidden = !d.arg; $('reqVal').placeholder = d.hint || ''; $('reqVal').value = d.fromPlan && st ? st.config.fp[d.fromPlan] || '' : '';
+    $('reqOpts').innerHTML = (d.options || []).map(o => '<option value="' + esc(o) + '"></option>').join('');
+  }
+  $('reqKind').onchange = reqChanged;
+  $('reqForm').onsubmit = e => { e.preventDefault(); send({ t: 'req', kind: $('reqKind').value, value: $('reqVal').hidden ? '' : $('reqVal').value.trim() }); };
+  document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
+    if (b.dataset.q === 'unable') { $('reqKind').value = 'unable'; reqChanged(); $('reqVal').focus(); return; }
+    send({ t: 'req', kind: b.dataset.q });
+  });
   $('readback').onclick = () => send({ t: 'readback' });
   $('addonsBtn').onclick = () => { $('addonsBtn').disabled = true; $('addonsOut').innerHTML = '<li>Looking for MSFS and X-Plane…</li>'; send({ t: 'installAddons' }); };
   $('tx').addEventListener('submit', e => { e.preventDefault(); const t = $('txt').value.trim(); if (t) { send({ t: 'send', text: t }); $('txt').value = ''; } });
@@ -245,6 +336,7 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
     const t = '<span class="t">' + new Date(m.at).toISOString().slice(11, 16) + '</span> ';
     if (m.system) return addLine($('log'), t + '<span class="sys">' + esc(m.text) + '</span>', 200);
     const isAtc = st && st.atc.some(c => c.cs === m.from);
+    if (voice && $('ttsOn').checked && !m.mine && (isAtc || m.atis)) voice.speak(m.text, m.from);
     addLine($('log'), t + '<span class="' + (m.mine ? 'me' : isAtc ? 'atcm' : '') + '">' + esc(m.from) + (m.private ? ' (private)' : '') + ':</span> ' + esc(m.text), 200);
   }
   function applog(line) { addLine($('applog'), esc(line), 300); }

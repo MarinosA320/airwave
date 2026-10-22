@@ -33,7 +33,8 @@ const events = [];
 const hub = new A.Hub({ sector: map, log: m => events.push(m) });
 const src = hub.addSource(new A.SimTrafficSource({ count: 6, seed: 5 }));
 const heard = [];
-const atc = hub.connect(m => { if (m.t === 'msg' || m.t === 'error') heard.push(m); });
+const reqs = [];
+const atc = hub.connect(m => { if (m.t === 'msg' || m.t === 'error') heard.push(m); if (m.t === 'req') reqs.push(m); });
 atc.receive({ t: 'hello', role: 'atc', callsign: 'LGAV_APP', facility: 'LGAV_APP' });
 
 const arrivals = src.pilots.filter(p => p.arriving);
@@ -44,6 +45,8 @@ check(deps.length > 0 && deps.every(p => p.procName === 'TEST1D' && p.initialCli
 const visited = new Map();
 for (let i = 0; i < 4000; i++) {
   hub.tick(1);
+  // With a controller online, arrivals report established and need a landing clearance.
+  for (const r of reqs.splice(0)) if (r.kind === 'established') atc.receive({ t: 'instr', to: r.from, kind: 'land' });
   for (const p of src.pilots) {
     const w = p.route[p.wp - 1];
     if (w) { const s = visited.get(p.cs) || new Set(); s.add(w.id); visited.set(p.cs, s); }

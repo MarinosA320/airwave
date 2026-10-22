@@ -93,6 +93,8 @@ class XPlaneAdapter extends EventEmitter {
       const [cmd, arg] = msg.toString('utf8', 5).trim().split(/\s+/);
       if (cmd === 'tune' && /^1[1-3]\d\.\d{3}$/.test(arg || '')) this.emit('command', { t: 'tune', freq: arg });
       else if (['readback', 'connect', 'disconnect'].includes(cmd)) this.emit('command', { t: cmd });
+      else if (cmd === 'ptt') this.emit('ptt', arg === '1');
+      else if (cmd === 'req' && ['wilco', 'unable', 'sayagain', 'standby'].includes(arg)) this.emit('command', { t: 'req', kind: arg, value: arg === 'unable' ? 'due to performance' : '' });
     }
   }
 

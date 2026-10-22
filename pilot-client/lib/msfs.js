@@ -20,13 +20,15 @@ const BANK_SIGN = -1;
 
 const DEF = { OWN: 1, MOVE: 2, GROUND: 3 };
 const REQ = { OWN: 1, ENUM: 2 };
-const EV = { FREEZE_LATLON: 1, FREEZE_ALT: 2, FREEZE_ATT: 3, GEAR_UP: 4, GEAR_DOWN: 5, LANDING_LIGHTS: 6, STROBES: 7, BEACON: 8, TAXI: 9 };
+const EV = { FREEZE_LATLON: 1, FREEZE_ALT: 2, FREEZE_ATT: 3, GEAR_UP: 4, GEAR_DOWN: 5, LANDING_LIGHTS: 6, STROBES: 7, BEACON: 8, TAXI: 9, PTT_DOWN: 20, PTT_UP: 21 };
+const INPUT_PTT = 1;
 const MAX_AI = 40;
 
 class MsfsAdapter extends EventEmitter {
-  constructor({ matcher, log = () => {} }) {
+  // pttInput: an MSFS input name for push-to-talk, e.g. "joystick:0:button:3" or "VK_RCONTROL"
+  constructor({ matcher, log = () => {}, pttInput = '' }) {
     super();
-    this.matcher = matcher; this.log = log;
+    this.matcher = matcher; this.log = log; this.pttInput = String(pttInput || '').trim();
     this.handle = null; this.is2024 = false; this.connected = false;
     this.ai = new Map();        // cs -> { a, objectId, reqId, gear, lights, groundAlt, cg }
     this.pending = new Map();   // reqId -> cs
@@ -73,6 +75,17 @@ class MsfsAdapter extends EventEmitter {
 
     handle.requestDataOnSimObject(REQ.OWN, DEF.OWN, SimConnectConstants.OBJECT_ID_USER, SimConnectPeriod.SIM_FRAME, 0, 0, 12, 0);
 
+    // Push-to-talk on a joystick button or key, read by the sim even while it has the focus.
+    if (this.pttInput) {
+      try {
+        handle.mapClientEventToSimEvent(EV.PTT_DOWN); handle.mapClientEventToSimEvent(EV.PTT_UP);
+        handle.mapInputEventToClientEvent(INPUT_PTT, this.pttInput, EV.PTT_DOWN, 0, EV.PTT_UP, 0, false);
+        handle.setInputGroupPriority(INPUT_PTT, PRIORITY_HIGHEST);
+        handle.setInputGroupState(INPUT_PTT, true);
+        this.log('Push-to-talk on ' + this.pttInput);
+      } catch (e) { this.log('Could not set push-to-talk on ' + this.pttInput + ': ' + e.message); }
+    }
+    handle.on('event', e => { if (e.clientEventId === EV.PTT_DOWN) this.emit('ptt', true); else if (e.clientEventId === EV.PTT_UP) this.emit('ptt', false); });
     handle.on('simObjectData', d => this.onData(d));
     handle.on('assignedObjectID', r => this.onAssigned(r));
     handle.on('enumerateSimobjectAndLiveryList', r => this.onEnum(r));
