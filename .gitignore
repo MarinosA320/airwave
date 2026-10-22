@@ -3,3 +3,5 @@ dist/
 data/src/
 xplane-plugin/lib/
 pilot-client/config.json
+__pycache__/
+*.pyc
