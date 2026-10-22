@@ -179,14 +179,15 @@ Controller sends: `hello` with `role:"atc"` and a `facility`, then `instr`, `ass
 
 ## Data sources and accuracy
 
-- Airports, runways, navaids and airport frequencies: [OurAirports](https://ourairports.com/data/) (public domain). Community data; check against the AIP before relying on it.
+- **AIP Greece** (HASP AIS, AIRAC 2611): all 266 named waypoints, 101 airways, official navaid positions, and Athens (LGAV) SIDs, STARs and approaches with transitions and missed approaches. See `tools/aip/README.md`.
+- Airports, runways and airport frequencies: [OurAirports](https://ourairports.com/data/) (public domain). Community data; check against the AIP before relying on it.
 - The FIR outline, the area sector split and area-control frequencies are approximate Airwave values.
 - Default runway in use: the longest runway, landing into a northerly wind.
 - Not for real-world navigation.
 
 ## Known limits
 
-- Procedures still need transcribing from the AIP (see `docs/PROCEDURES.md`).
+- Procedures are imported for LGAV so far; other airports and the conventional (VOR/NDB) charts are next (see `tools/aip/README.md`).
 - Terrain isn't modelled; simulated pilots don't avoid mountains.
 - No accounts yet. Use `AIRWAVE_ATC_PASSWORD` (and optionally `AIRWAVE_PASSWORD`) on an online server.
 - No voice yet; radio is text.

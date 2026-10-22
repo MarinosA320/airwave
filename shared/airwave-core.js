@@ -8,7 +8,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const VERSION = '0.5.0';
+  const VERSION = '0.6.0';
 
   // ---------------------------------------------------------------- geo helpers
   const toRad = d => d * Math.PI / 180;
@@ -137,6 +137,20 @@
     if ((m = t.match(/^(?:STAND|GATE|S)\s*([A-Z0-9]{1,4})$/))) return 'stand ' + m[1];
     if ((m = t.match(/^(?:RWY|RUNWAY)\s*(\d{2}[LRC]?)$/))) return 'runway ' + m[1];
     return t.toLowerCase();
+  }
+  // Final approach legs, preceded by the initial-approach transition that starts at `from`, if the chart has one.
+  function approachRoute(map, proc, from) {
+    if (!proc) return [];
+    const tr = from && proc.transitions && proc.transitions[from] ? resolveLegs(map, { legs: proc.transitions[from] }) : [];
+    const legs = dedupe(tr.concat(resolveLegs(map, proc)));
+    if (legs.length && !legs.some(l => l.faf)) legs[legs.length - 1].faf = true;
+    return legs;
+  }
+  // The transition start nearest to a point (for traffic arriving without a STAR).
+  function nearestTransition(map, proc, p) {
+    const starts = Object.keys((proc && proc.transitions) || {}).map(id => map.fixIndex.get(id) && { id, f: map.fixIndex.get(id) }).filter(Boolean);
+    starts.sort((a, b) => distNm(p, a.f) - distNm(p, b.f));
+    return starts[0] ? starts[0].id : null;
   }
   function approachName(proc) {
     if (!proc) return 'approach';
@@ -565,13 +579,24 @@
           break;
         }
         case 'ils':
-          if (m.proc) {
-            const proc = proceduresFor(this.ap, 'APP').find(p => p.name === m.proc);
-            const legs = proc ? resolveLegs(this.sector, proc) : [];
-            if (legs.length) { if (!legs.some(l => l.faf)) legs[legs.length - 1].faf = true; this.geo.appLegs = legs; }
+          {
+            const proc = m.proc ? proceduresFor(this.ap, 'APP').find(p => p.name === m.proc) : bestApproach(this.ap, this.geo.rwy.id);
+            if (proc) {
+              // Join the transition that starts at the next fix on the current route, if there is one.
+              const ahead = this.mode === 'nav' ? this.route.slice(this.wp).map(w => w.id) : [];
+              const from = ahead.find(id => proc.transitions && proc.transitions[id]);
+              const legs = approachRoute(this.sector, proc, from || (this.mode === 'nav' ? null : nearestTransition(this.sector, proc, this)));
+              if (legs.length) {
+                this.geo.appLegs = legs;
+                if (this.mode !== 'hdg') {
+                  const i = from ? ahead.indexOf(from) : -1;
+                  this.route = dedupe((i >= 0 ? this.route.slice(this.wp, this.wp + i) : []).concat(legs)); this.wp = 0;
+                }
+              }
+            }
           }
           if (this.mode === 'hdg') this.ilsArmed = true;
-          else { this.mode = 'nav'; this.route = this.approachLegs(); this.wp = 0; }
+          else this.mode = 'nav';
           break;
         case 'resume': this.mode = 'nav'; break;
         case 'contact': {
@@ -752,9 +777,7 @@
       const rwy = activeRunway(ap);
       const g = runwayGeometry(rwy);
       const app = bestApproach(ap, rwy.id);
-      const appLegs = app ? resolveLegs(S, app) : [];
-      if (appLegs.length && !appLegs.some(l => l.faf)) appLegs[appLegs.length - 1].faf = true;
-      const geo = Object.assign({ rwy, appLegs }, g);
+      const geo = Object.assign({ rwy, appLegs: approachRoute(S, app, null) }, g);
       const [op, types] = this.pick(this.operatorsFor(icao));
       let cs; do { cs = op + (100 + Math.floor(this.rand() * 8900)); } while (this.used.has(cs) || this.hub.byCallsign(cs));
       const type = this.pick(types);
@@ -772,7 +795,15 @@
         let route, routeText, procName = null;
         if (stars.length) {
           const star = stars.map(s => ({ s, legs: resolveLegs(S, s) })).filter(x => x.legs.length).sort((a, b) => distNm(p, a.legs[0]) - distNm(p, b.legs[0]))[0];
-          if (star) { route = dedupe(star.legs.concat(appLegsOr(geo))); procName = star.s.name; routeText = star.s.name + ' ' + (app ? app.name : 'RWY' + rwy.id); }
+          if (star) {
+            const end = star.legs[star.legs.length - 1].id;
+            if (app && app.transitions && app.transitions[end]) geo.appLegs = approachRoute(S, app, end);
+            route = dedupe(star.legs.concat(appLegsOr(geo))); procName = star.s.name; routeText = star.s.name + ' ' + (app ? app.name : 'RWY' + rwy.id);
+          }
+        }
+        if (!route && app && app.transitions) {
+          const from = nearestTransition(S, app, p);
+          if (from) { geo.appLegs = approachRoute(S, app, from); route = appLegsOr(geo); routeText = app.name + ' via ' + from; }
         }
         if (!route) {
           const hold = S.fixes.filter(f => distNm(f, ap) < P.holdRadius).sort((a, b) => distNm(p, a) - distNm(p, b))[0];
@@ -828,6 +859,6 @@
   return {
     VERSION, Hub, SimTrafficSource, DEMO_SECTOR, MAPS, registerMap,
     geo: { distNm, bearing, move, offsetNm, pointInPoly, angleDiff, norm360 },
-    runwayGeometry, activeRunway, proceduresFor, bestApproach, resolveLegs, instrPhrase, altPhrase, magVar, magBearing, taxiTarget
+    runwayGeometry, activeRunway, proceduresFor, bestApproach, resolveLegs, approachRoute, instrPhrase, altPhrase, magVar, magBearing, taxiTarget
   };
 });

@@ -5,6 +5,7 @@
  *
  *   node tools/fetch-layouts.js              all airports on the Greek map
  *   node tools/fetch-layouts.js LGAV LGTS    only these airports
+ *   node tools/fetch-layouts.js --missing    only airports that have no layout yet (resumes an interrupted run)
  *
  * Needs Node 18 or newer and an internet connection. Uses the public Overpass API politely:
  * one request at a time with a pause between them. Layout data © OpenStreetMap contributors, ODbL.
@@ -63,38 +64,51 @@ function query(ap) {
     ');out geom tags;';
 }
 
-async function fetchOne(ap) {
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+// Tries the preferred server first, then the others, with a pause between attempts (busy servers answer 429/502/504).
+async function fetchOne(ap, preferred = 0) {
   let lastErr;
-  for (const url of ENDPOINTS) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const url = ENDPOINTS[(preferred + attempt) % ENDPOINTS.length];
     try {
-      const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'Airwave-layout-fetcher/0.2' }, body: 'data=' + encodeURIComponent(query(ap)) });
+      const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 150000);
+      const res = await fetch(url, { method: 'POST', signal: ctl.signal, headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'Airwave-layout-fetcher/0.3' }, body: 'data=' + encodeURIComponent(query(ap)) });
+      clearTimeout(timer);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return await res.json();
-    } catch (e) { lastErr = e; }
+    } catch (e) { lastErr = e; await sleep(5000 * (attempt + 1)); }
   }
   throw lastErr;
 }
 
 async function main() {
   const map = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'greece.json'), 'utf8'));
-  const want = process.argv.slice(2).map(s => s.toUpperCase());
-  const list = want.length ? map.airports.filter(a => want.includes(a.icao)) : map.airports;
-  const missing = want.filter(w => !map.airports.some(a => a.icao === w));
-  if (missing.length) console.log('Not on the map, skipped: ' + missing.join(', '));
+  const args = process.argv.slice(2);
+  const missingOnly = args.includes('--missing');
+  const want = args.filter(a => !a.startsWith('--')).map(s => s.toUpperCase());
+  let list = want.length ? map.airports.filter(a => want.includes(a.icao)) : map.airports;
+  const unknown = want.filter(w => !map.airports.some(a => a.icao === w));
+  if (unknown.length) console.log('Not on the map, skipped: ' + unknown.join(', '));
+  if (missingOnly) list = list.filter(a => !fs.existsSync(path.join(OUT_DIR, a.icao + '.json')));
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  let ok = 0;
-  for (const [i, ap] of list.entries()) {
-    process.stdout.write(`[${i + 1}/${list.length}] ${ap.icao} ${ap.name} ... `);
-    try {
-      const L = convert(await fetchOne(ap), ap.icao);
-      fs.writeFileSync(path.join(OUT_DIR, ap.icao + '.json'), JSON.stringify(L));
-      console.log(`${L.taxiways.length} taxiways, ${L.aprons.length} aprons, ${L.stands.length} stands, ${L.gates.length} gates, ${L.holding.length} holding points`);
-      ok++;
-    } catch (e) {
-      console.log('failed (' + e.message + '). Try again later.');
+  let ok = 0, n = 0;
+  // One worker per server, so two airports download at once.
+  const queue = list.slice();
+  const worker = async w => {
+    while (queue.length) {
+      const ap = queue.shift(); const i = ++n;
+      try {
+        const L = convert(await fetchOne(ap, w), ap.icao);
+        fs.writeFileSync(path.join(OUT_DIR, ap.icao + '.json'), JSON.stringify(L));
+        console.log(`[${i}/${list.length}] ${ap.icao} ${ap.name}: ${L.taxiways.length} taxiways, ${L.aprons.length} aprons, ${L.stands.length} stands, ${L.gates.length} gates, ${L.holding.length} holding points`);
+        ok++;
+      } catch (e) {
+        console.log(`[${i}/${list.length}] ${ap.icao} ${ap.name}: failed (${e.message}). Run again with --missing to retry.`);
+      }
+      await sleep(PAUSE_MS);
     }
-    if (i < list.length - 1) await new Promise(r => setTimeout(r, PAUSE_MS));
-  }
+  };
+  await Promise.all(ENDPOINTS.map((_, w) => worker(w)));
   console.log(`Done: ${ok} of ${list.length} airports saved in data/layouts. Restart the server to use them.`);
 }
 

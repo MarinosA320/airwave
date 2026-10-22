@@ -178,7 +178,31 @@ for r in rows('navaids.csv'):
          'lat': round(num(r['latitude_deg']), 5), 'lon': round(num(r['longitude_deg']), 5)}
     navaids.append(n); seen_nav[ident] = n
 
-# ------------------------------------------------------------------ procedures (hand-transcribed from AIP charts)
+# ------------------------------------------------------------------ AIP en-route data (tools/aip/build_lgav.py)
+AIRWAYS = []
+ENR = os.path.join(ROOT, 'data', 'aip', 'enroute.json')
+if os.path.exists(ENR):
+    with open(ENR, encoding='utf-8') as f:
+        enr = json.load(f)
+    by_id = {n['id']: n for n in navaids}
+    for n in enr['navaids']:                      # official positions replace community ones
+        if n['id'] in by_id:
+            by_id[n['id']].update(lat=n['lat'], lon=n['lon'], name=n['name'])
+        else:
+            navaids.append(dict(n)); by_id[n['id']] = navaids[-1]
+    for w in enr['waypoints']:
+        if w['id'] not in by_id:
+            navaids.append({'id': w['id'], 'kind': 'wpt', 'lat': w['lat'], 'lon': w['lon']}); by_id[w['id']] = navaids[-1]
+    for pid, (lat, lon) in enr.get('routePoints', {}).items():
+        if pid not in by_id:
+            navaids.append({'id': pid, 'kind': 'wpt', 'lat': lat, 'lon': lon}); by_id[pid] = navaids[-1]
+    for name, pts in enr['airways'].items():
+        for a, b in zip(pts, pts[1:]):
+            if a in by_id and b in by_id: AIRWAYS.append([a, b, name])
+    nav_ids = {n['id'] for n in navaids}
+    print('AIP en-route: %d airway segments, %d fixes total' % (len(AIRWAYS), len(navaids)))
+
+# ------------------------------------------------------------------ procedures (from the AIP, see data/procedures)
 PROC_DIR = os.path.join(ROOT, 'data', 'procedures')
 TYPES = {'SID', 'STAR', 'APP'}
 APPROACHES = {'ILS', 'LOC', 'LPV', 'RNAV', 'RNP', 'VOR', 'VORDME', 'NDB', 'NDBDME', 'DME', 'VISUAL'}
@@ -207,8 +231,9 @@ if os.path.isdir(PROC_DIR):
             if p.get('type') == 'APP' and str(p.get('approach', '')).upper() not in APPROACHES: errs.append('approach must be one of ' + ', '.join(sorted(APPROACHES)))
             if p.get('runway') not in rwy_ids | {'ALL'}: errs.append('runway %s is not at %s' % (p.get('runway'), icao))
             if not p.get('legs'): errs.append('has no legs')
-            for l in p.get('legs', []):
-                if l.get('fix') and l['fix'] not in ids: errs.append('unknown fix ' + l['fix'])
+            segs = [p.get('legs', []), p.get('missed', [])] + list((p.get('transitions') or {}).values())
+            for l in [l for seg in segs for l in seg]:
+                if l.get('fix') and l['fix'] not in ids and not l['fix'].startswith('RW'): errs.append('unknown fix ' + l['fix'])
                 if l.get('altType') and l['altType'] not in ('at', 'above', 'below'): errs.append('altType must be at, above or below')
             if errs: problems.append(label + ': ' + '; '.join(errs))
             else: good.append(p)
@@ -259,10 +284,10 @@ MAGVAR = build_magvar()
 
 out = {
     'id': 'GREECE', 'name': 'Greece (Athens FIR)',
-    'note': 'Airports, runways and navaids from OurAirports. FIR outline, sector split and area-control frequencies are approximate Airwave values. Not for real-world navigation.',
+    'note': 'Waypoints, airways, navaid positions and LGAV procedures from the AIP Greece (AIRAC 2611). Airports and runways from OurAirports. FIR outline, sector split and area-control frequencies are still approximate. Not for real-world navigation.',
     'center': {'lat': 38.3, 'lon': 24.0}, 'transitionAlt': 6000, 'unicom': '122.800',
     'sectors': SECTORS, 'facilities': facilities, 'airports': airports,
-    'fixes': navaids, 'airways': [], 'coast': COAST, 'magvar': MAGVAR,
+    'fixes': navaids, 'airways': AIRWAYS, 'coast': COAST, 'magvar': MAGVAR,
     'source': 'OurAirports (public domain), https://ourairports.com/data/; coastline: Natural Earth (public domain); magnetic variation: World Magnetic Model'
 }
 with open(OUT, 'w', encoding='utf-8') as f:

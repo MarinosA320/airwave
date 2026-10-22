@@ -1,0 +1,3580 @@
+{
+ "icao": "LGAV",
+ "airac": "2611",
+ "source": "AIP Greece AD 2 LGAV (AIRAC AMDT 09/26)",
+ "waypoints": [
+  {
+   "id": "ASTOV",
+   "lat": 37.420833,
+   "lon": 22.534444
+  },
+  {
+   "id": "AV030",
+   "lat": 38.064746,
+   "lon": 24.051184
+  },
+  {
+   "id": "AV031",
+   "lat": 38.07722,
+   "lon": 24.090822
+  },
+  {
+   "id": "AV032",
+   "lat": 38.105083,
+   "lon": 24.088544
+  },
+  {
+   "id": "AV033",
+   "lat": 38.098818,
+   "lon": 24.111663
+  },
+  {
+   "id": "AV034",
+   "lat": 38.094849,
+   "lon": 23.956238
+  },
+  {
+   "id": "AV035",
+   "lat": 38.07255,
+   "lon": 24.208368
+  },
+  {
+   "id": "AV036",
+   "lat": 38.066942,
+   "lon": 23.778802
+  },
+  {
+   "id": "AV037",
+   "lat": 38.043293,
+   "lon": 24.315547
+  },
+  {
+   "id": "AV038",
+   "lat": 37.972898,
+   "lon": 23.872832
+  },
+  {
+   "id": "AV210",
+   "lat": 37.804672,
+   "lon": 23.766652
+  },
+  {
+   "id": "AV211",
+   "lat": 37.753005,
+   "lon": 23.829176
+  },
+  {
+   "id": "AV212",
+   "lat": 37.675105,
+   "lon": 23.598703
+  },
+  {
+   "id": "AV213",
+   "lat": 37.578126,
+   "lon": 23.712772
+  },
+  {
+   "id": "AV214",
+   "lat": 37.623321,
+   "lon": 23.498206
+  },
+  {
+   "id": "AV215",
+   "lat": 37.689155,
+   "lon": 23.983021
+  },
+  {
+   "id": "AV216",
+   "lat": 37.60954,
+   "lon": 23.99115
+  },
+  {
+   "id": "AV217",
+   "lat": 37.783326,
+   "lon": 23.57675
+  },
+  {
+   "id": "AV218",
+   "lat": 38.000746,
+   "lon": 23.62186
+  },
+  {
+   "id": "AV421",
+   "lat": 37.856868,
+   "lon": 23.857594
+  },
+  {
+   "id": "AV422",
+   "lat": 37.783415,
+   "lon": 23.78795
+  },
+  {
+   "id": "AV423",
+   "lat": 37.740369,
+   "lon": 23.747471
+  },
+  {
+   "id": "AV424",
+   "lat": 37.719235,
+   "lon": 23.727541
+  },
+  {
+   "id": "AV425",
+   "lat": 37.6821,
+   "lon": 23.692558
+  },
+  {
+   "id": "AV426",
+   "lat": 38.076109,
+   "lon": 24.067208
+  },
+  {
+   "id": "AV427",
+   "lat": 38.043597,
+   "lon": 24.186994
+  },
+  {
+   "id": "AV441",
+   "lat": 37.805396,
+   "lon": 23.831047
+  },
+  {
+   "id": "AV442",
+   "lat": 37.738694,
+   "lon": 23.767914
+  },
+  {
+   "id": "AV443",
+   "lat": 37.697742,
+   "lon": 23.729226
+  },
+  {
+   "id": "AV445",
+   "lat": 37.98441,
+   "lon": 24.001177
+  },
+  {
+   "id": "AV446",
+   "lat": 37.981215,
+   "lon": 24.056886
+  },
+  {
+   "id": "AV447",
+   "lat": 37.974501,
+   "lon": 24.172487
+  },
+  {
+   "id": "AV461",
+   "lat": 37.748872,
+   "lon": 23.642953
+  },
+  {
+   "id": "AV462",
+   "lat": 37.65826,
+   "lon": 23.636754
+  },
+  {
+   "id": "AV463",
+   "lat": 37.614473,
+   "lon": 23.735744
+  },
+  {
+   "id": "AV464",
+   "lat": 37.757284,
+   "lon": 23.538412
+  },
+  {
+   "id": "AV465",
+   "lat": 37.618705,
+   "lon": 23.544379
+  },
+  {
+   "id": "AV466",
+   "lat": 37.531201,
+   "lon": 23.742247
+  },
+  {
+   "id": "AV467",
+   "lat": 37.58103,
+   "lon": 23.456643
+  },
+  {
+   "id": "AV468",
+   "lat": 37.447928,
+   "lon": 23.748736
+  },
+  {
+   "id": "AV469",
+   "lat": 37.536282,
+   "lon": 23.846821
+  },
+  {
+   "id": "AV470",
+   "lat": 37.54127,
+   "lon": 23.951408
+  },
+  {
+   "id": "AV471",
+   "lat": 37.546165,
+   "lon": 24.05601
+  },
+  {
+   "id": "AV472",
+   "lat": 37.550968,
+   "lon": 24.160625
+  },
+  {
+   "id": "AV500",
+   "lat": 37.446964,
+   "lon": 22.842338
+  },
+  {
+   "id": "AV501",
+   "lat": 37.183667,
+   "lon": 23.747683
+  },
+  {
+   "id": "AV502",
+   "lat": 37.818435,
+   "lon": 23.271227
+  },
+  {
+   "id": "AV503",
+   "lat": 37.969642,
+   "lon": 23.46799
+  },
+  {
+   "id": "AV504",
+   "lat": 37.909922,
+   "lon": 23.545974
+  },
+  {
+   "id": "AV521",
+   "lat": 38.058159,
+   "lon": 24.049006
+  },
+  {
+   "id": "AV522",
+   "lat": 38.104404,
+   "lon": 24.093095
+  },
+  {
+   "id": "AV523",
+   "lat": 38.151062,
+   "lon": 24.137713
+  },
+  {
+   "id": "AV528",
+   "lat": 37.810259,
+   "lon": 23.812506
+  },
+  {
+   "id": "AV540",
+   "lat": 37.950396,
+   "lon": 23.968782
+  },
+  {
+   "id": "AV541",
+   "lat": 38.015149,
+   "lon": 24.030445
+  },
+  {
+   "id": "AV542",
+   "lat": 38.101776,
+   "lon": 24.11316
+  },
+  {
+   "id": "AV543",
+   "lat": 38.144095,
+   "lon": 24.153657
+  },
+  {
+   "id": "AV550",
+   "lat": 37.759815,
+   "lon": 23.840016
+  },
+  {
+   "id": "AV560",
+   "lat": 38.098065,
+   "lon": 24.176329
+  },
+  {
+   "id": "AV561",
+   "lat": 38.059562,
+   "lon": 24.216793
+  },
+  {
+   "id": "AV562",
+   "lat": 37.997008,
+   "lon": 24.251285
+  },
+  {
+   "id": "AV563",
+   "lat": 37.972733,
+   "lon": 24.15044
+  },
+  {
+   "id": "AV564",
+   "lat": 37.913887,
+   "lon": 24.260289
+  },
+  {
+   "id": "AV565",
+   "lat": 37.948371,
+   "lon": 24.049661
+  },
+  {
+   "id": "AV566",
+   "lat": 37.830763,
+   "lon": 24.269273
+  },
+  {
+   "id": "AV570",
+   "lat": 38.091527,
+   "lon": 24.273701
+  },
+  {
+   "id": "AV571",
+   "lat": 38.050999,
+   "lon": 24.365942
+  },
+  {
+   "id": "BADEL",
+   "lat": 37.000556,
+   "lon": 24.073889
+  },
+  {
+   "id": "BIBEX",
+   "lat": 37.208056,
+   "lon": 24.834444
+  },
+  {
+   "id": "NEMES",
+   "lat": 37.706389,
+   "lon": 22.580833
+  },
+  {
+   "id": "NEVRA",
+   "lat": 38.168333,
+   "lon": 24.560278
+  },
+  {
+   "id": "OGSIL",
+   "lat": 38.162778,
+   "lon": 24.751389
+  },
+  {
+   "id": "PELAG",
+   "lat": 37.320833,
+   "lon": 23.758611
+  },
+  {
+   "id": "PIKAD",
+   "lat": 38.061389,
+   "lon": 22.697778
+  },
+  {
+   "id": "RILIN",
+   "lat": 37.965,
+   "lon": 22.666667
+  },
+  {
+   "id": "ROPOX",
+   "lat": 38.17,
+   "lon": 23.763889
+  },
+  {
+   "id": "RW03L",
+   "lat": 37.923673,
+   "lon": 23.920933
+  },
+  {
+   "id": "RW03R",
+   "lat": 37.925932,
+   "lon": 23.945506
+  },
+  {
+   "id": "RW21L",
+   "lat": 37.950396,
+   "lon": 23.968782
+  },
+  {
+   "id": "RW21R",
+   "lat": 37.946703,
+   "lon": 23.942831
+  },
+  {
+   "id": "SOREV",
+   "lat": 37.096944,
+   "lon": 24.424444
+  },
+  {
+   "id": "VARIX",
+   "lat": 37.363889,
+   "lon": 25.034167
+  },
+  {
+   "id": "VELOP",
+   "lat": 37.149167,
+   "lon": 23.286667
+  },
+  {
+   "id": "XORKI",
+   "lat": 38.169722,
+   "lon": 23.509167
+  }
+ ],
+ "procedures": [
+  {
+   "type": "APP",
+   "name": "ILS X RWY 03L",
+   "approach": "ILS",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "AV422",
+     "alt": 3000,
+     "altType": "above",
+     "spd": 185
+    },
+    {
+     "fix": "AV421",
+     "alt": 1900,
+     "altType": "above",
+     "faf": true
+    },
+    {
+     "fix": "RW03L"
+    }
+   ],
+   "chart": "AD 2-LGAV-IAC-22",
+   "transitions": {
+    "DDM": [
+     {
+      "fix": "DDM",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV467",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV465",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV462"
+     },
+     {
+      "fix": "AV425"
+     },
+     {
+      "fix": "AV423"
+     },
+     {
+      "fix": "AV422",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "EGN": [
+     {
+      "fix": "EGN",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV464",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV461"
+     },
+     {
+      "fix": "AV423"
+     },
+     {
+      "fix": "AV422",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "KEA": [
+     {
+      "fix": "KEA",
+      "alt": 5000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV472",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV471"
+     },
+     {
+      "fix": "AV470"
+     },
+     {
+      "fix": "AV469"
+     },
+     {
+      "fix": "AV466"
+     },
+     {
+      "fix": "AV463"
+     },
+     {
+      "fix": "AV424"
+     },
+     {
+      "fix": "AV422",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "PELAG": [
+     {
+      "fix": "PELAG",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV468",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV466"
+     },
+     {
+      "fix": "AV463"
+     },
+     {
+      "fix": "AV424"
+     },
+     {
+      "fix": "AV422",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ]
+   },
+   "missed": [
+    {
+     "fix": "AV426"
+    },
+    {
+     "fix": "AV427"
+    },
+    {
+     "fix": "KEA",
+     "alt": 5000
+    }
+   ]
+  },
+  {
+   "type": "APP",
+   "name": "ILS X RWY 03R",
+   "approach": "ILS",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "AV442",
+     "alt": 4000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV441",
+     "alt": 3200,
+     "altType": "above",
+     "faf": true
+    },
+    {
+     "fix": "RW03R"
+    }
+   ],
+   "chart": "AD 2-LGAV-IAC-23",
+   "transitions": {
+    "DDM": [
+     {
+      "fix": "DDM",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV467",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV465",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV462"
+     },
+     {
+      "fix": "AV443"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ],
+    "EGN": [
+     {
+      "fix": "EGN",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV464"
+     },
+     {
+      "fix": "AV461"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ],
+    "KEA": [
+     {
+      "fix": "KEA",
+      "alt": 5000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV472",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV471"
+     },
+     {
+      "fix": "AV470"
+     },
+     {
+      "fix": "AV469"
+     },
+     {
+      "fix": "AV466"
+     },
+     {
+      "fix": "AV463"
+     },
+     {
+      "fix": "AV443"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ],
+    "PELAG": [
+     {
+      "fix": "PELAG",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV468"
+     },
+     {
+      "fix": "AV466"
+     },
+     {
+      "fix": "AV463"
+     },
+     {
+      "fix": "AV443"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ]
+   },
+   "missed": [
+    {
+     "fix": "AV445"
+    },
+    {
+     "fix": "AV447"
+    },
+    {
+     "fix": "KEA",
+     "alt": 5000
+    }
+   ]
+  },
+  {
+   "type": "APP",
+   "name": "ILS X RWY 21L",
+   "approach": "ILS",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "AV542",
+     "alt": 3000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV541",
+     "alt": 1900,
+     "altType": "above",
+     "faf": true
+    },
+    {
+     "fix": "RW21L"
+    }
+   ],
+   "chart": "AD 2-LGAV-IAC-24",
+   "transitions": {
+    "EGN": [
+     {
+      "fix": "EGN",
+      "alt": 7000,
+      "altType": "above"
+     },
+     {
+      "fix": "ATV"
+     },
+     {
+      "fix": "AV565"
+     },
+     {
+      "fix": "AV563",
+      "alt": 7000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV562",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV561",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV560"
+     },
+     {
+      "fix": "AV542",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "KEA": [
+     {
+      "fix": "KEA",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV566"
+     },
+     {
+      "fix": "AV564",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV562",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV561",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV560"
+     },
+     {
+      "fix": "AV542",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "KRO": [
+     {
+      "fix": "KRO",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV571",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV570",
+      "alt": 4200,
+      "altType": "above"
+     },
+     {
+      "fix": "AV543",
+      "alt": 3500,
+      "altType": "above"
+     },
+     {
+      "fix": "AV542",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ]
+   },
+   "missed": [
+    {
+     "fix": "SPA"
+    },
+    {
+     "fix": "AV550"
+    },
+    {
+     "fix": "KEA",
+     "alt": 5000
+    }
+   ]
+  },
+  {
+   "type": "APP",
+   "name": "ILS X RWY 21R",
+   "approach": "ILS",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "AV522",
+     "alt": 3000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV521",
+     "alt": 3000,
+     "altType": "above",
+     "faf": true
+    },
+    {
+     "fix": "RW21R"
+    }
+   ],
+   "chart": "AD 2-LGAV-IAC-25",
+   "transitions": {
+    "EGN": [
+     {
+      "fix": "EGN",
+      "alt": 7000,
+      "altType": "above"
+     },
+     {
+      "fix": "ATV"
+     },
+     {
+      "fix": "AV565"
+     },
+     {
+      "fix": "AV563",
+      "alt": 7000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV562",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV561",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV560"
+     },
+     {
+      "fix": "AV522",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "KEA": [
+     {
+      "fix": "KEA",
+      "alt": 5000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV566",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV564",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV562",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV561",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV560"
+     },
+     {
+      "fix": "AV522",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "KRO": [
+     {
+      "fix": "KRO",
+      "alt": 7000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV571",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV570",
+      "alt": 4200,
+      "altType": "above"
+     },
+     {
+      "fix": "AV523",
+      "alt": 3500,
+      "altType": "above"
+     },
+     {
+      "fix": "AV522",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ]
+   },
+   "missed": [
+    {
+     "fix": "AV528"
+    },
+    {
+     "fix": "EGN"
+    }
+   ]
+  },
+  {
+   "type": "APP",
+   "name": "RNP RWY 03L",
+   "approach": "RNP",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "AV422",
+     "alt": 3000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV421",
+     "alt": 1900,
+     "altType": "above",
+     "faf": true
+    },
+    {
+     "fix": "RW03L"
+    }
+   ],
+   "chart": "AD 2-LGAV-IAC-26",
+   "transitions": {
+    "DDM": [
+     {
+      "fix": "DDM",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV467",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV465",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV462"
+     },
+     {
+      "fix": "AV425"
+     },
+     {
+      "fix": "AV423"
+     },
+     {
+      "fix": "AV422",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "EGN": [
+     {
+      "fix": "EGN",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV464",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV461"
+     },
+     {
+      "fix": "AV423"
+     },
+     {
+      "fix": "AV422",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "KEA": [
+     {
+      "fix": "KEA",
+      "alt": 5000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV472",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV471"
+     },
+     {
+      "fix": "AV470"
+     },
+     {
+      "fix": "AV469"
+     },
+     {
+      "fix": "AV466"
+     },
+     {
+      "fix": "AV463"
+     },
+     {
+      "fix": "AV424"
+     },
+     {
+      "fix": "AV422",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "PELAG": [
+     {
+      "fix": "PELAG",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV468",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV466"
+     },
+     {
+      "fix": "AV463"
+     },
+     {
+      "fix": "AV424"
+     },
+     {
+      "fix": "AV422",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ]
+   },
+   "missed": [
+    {
+     "fix": "AV426"
+    },
+    {
+     "fix": "AV427"
+    },
+    {
+     "fix": "KEA",
+     "alt": 5000
+    }
+   ]
+  },
+  {
+   "type": "APP",
+   "name": "RNP Z RWY 03R",
+   "approach": "RNP",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "AV442",
+     "alt": 4000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV441",
+     "alt": 3200,
+     "altType": "above",
+     "faf": true
+    },
+    {
+     "fix": "RW03R"
+    }
+   ],
+   "chart": "AD 2-LGAV-IAC-27",
+   "transitions": {
+    "DDM": [
+     {
+      "fix": "DDM",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV467",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV465",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV462"
+     },
+     {
+      "fix": "AV443"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ],
+    "EGN": [
+     {
+      "fix": "EGN",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV464"
+     },
+     {
+      "fix": "AV461"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ],
+    "KEA": [
+     {
+      "fix": "KEA",
+      "alt": 5000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV472",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV471"
+     },
+     {
+      "fix": "AV470"
+     },
+     {
+      "fix": "AV469"
+     },
+     {
+      "fix": "AV466"
+     },
+     {
+      "fix": "AV463"
+     },
+     {
+      "fix": "AV443"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ],
+    "PELAG": [
+     {
+      "fix": "PELAG",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV468"
+     },
+     {
+      "fix": "AV466"
+     },
+     {
+      "fix": "AV463"
+     },
+     {
+      "fix": "AV443"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ]
+   },
+   "missed": [
+    {
+     "fix": "AV540"
+    },
+    {
+     "fix": "AV446"
+    },
+    {
+     "fix": "AV447"
+    },
+    {
+     "fix": "KEA",
+     "alt": 5000
+    }
+   ]
+  },
+  {
+   "type": "APP",
+   "name": "RNP Y RWY 03R",
+   "approach": "RNP",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "AV442",
+     "alt": 4000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV441",
+     "alt": 3200,
+     "altType": "above",
+     "faf": true
+    },
+    {
+     "fix": "RW03R"
+    }
+   ],
+   "chart": "AD 2-LGAV-IAC-28",
+   "transitions": {
+    "DDM": [
+     {
+      "fix": "DDM",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV467",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV465",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV462"
+     },
+     {
+      "fix": "AV443"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ],
+    "EGN": [
+     {
+      "fix": "EGN",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV464"
+     },
+     {
+      "fix": "AV461"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ],
+    "KEA": [
+     {
+      "fix": "KEA",
+      "alt": 5000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV472",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV471"
+     },
+     {
+      "fix": "AV470"
+     },
+     {
+      "fix": "AV469"
+     },
+     {
+      "fix": "AV466"
+     },
+     {
+      "fix": "AV463"
+     },
+     {
+      "fix": "AV443"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ],
+    "PELAG": [
+     {
+      "fix": "PELAG",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV468"
+     },
+     {
+      "fix": "AV466"
+     },
+     {
+      "fix": "AV463"
+     },
+     {
+      "fix": "AV443"
+     },
+     {
+      "fix": "AV442",
+      "alt": 4000,
+      "altType": "above"
+     }
+    ]
+   },
+   "missed": [
+    {
+     "fix": "AV445"
+    },
+    {
+     "fix": "AV447"
+    },
+    {
+     "fix": "KEA",
+     "alt": 5000
+    }
+   ]
+  },
+  {
+   "type": "APP",
+   "name": "RNP RWY 21L",
+   "approach": "RNP",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "AV542",
+     "alt": 3000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV541",
+     "alt": 1900,
+     "altType": "above",
+     "faf": true
+    },
+    {
+     "fix": "RW21L"
+    }
+   ],
+   "chart": "AD 2-LGAV-IAC-29",
+   "transitions": {
+    "EGN": [
+     {
+      "fix": "EGN",
+      "alt": 7000,
+      "altType": "above"
+     },
+     {
+      "fix": "ATV"
+     },
+     {
+      "fix": "AV565"
+     },
+     {
+      "fix": "AV563",
+      "alt": 7000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV562",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "KEA": [
+     {
+      "fix": "KEA",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV566"
+     },
+     {
+      "fix": "AV564",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV562",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV561",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV560"
+     },
+     {
+      "fix": "AV542",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "KRO": [
+     {
+      "fix": "KRO",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV571",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV570",
+      "alt": 4200,
+      "altType": "above"
+     },
+     {
+      "fix": "AV543",
+      "alt": 3500,
+      "altType": "above"
+     },
+     {
+      "fix": "AV542",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ]
+   },
+   "missed": [
+    {
+     "fix": "SPA"
+    },
+    {
+     "fix": "AV550"
+    },
+    {
+     "fix": "KEA",
+     "alt": 5000
+    }
+   ]
+  },
+  {
+   "type": "APP",
+   "name": "RNP RWY 21R",
+   "approach": "RNP",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "AV522",
+     "alt": 3000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV521",
+     "alt": 3000,
+     "altType": "above",
+     "faf": true
+    },
+    {
+     "fix": "RW21R"
+    }
+   ],
+   "chart": "AD 2-LGAV-IAC-30",
+   "transitions": {
+    "EGN": [
+     {
+      "fix": "EGN",
+      "alt": 7000,
+      "altType": "above"
+     },
+     {
+      "fix": "ATV"
+     },
+     {
+      "fix": "AV565"
+     },
+     {
+      "fix": "AV563",
+      "alt": 7000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV562",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV561",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV560"
+     },
+     {
+      "fix": "AV522",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "KEA": [
+     {
+      "fix": "KEA",
+      "alt": 5000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV566",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV564",
+      "alt": 4000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV562",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV561",
+      "alt": 3000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV560"
+     },
+     {
+      "fix": "AV522",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ],
+    "KRO": [
+     {
+      "fix": "KRO",
+      "alt": 7000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV571",
+      "alt": 6000,
+      "altType": "above"
+     },
+     {
+      "fix": "AV570",
+      "alt": 4200,
+      "altType": "above"
+     },
+     {
+      "fix": "AV523",
+      "alt": 3500,
+      "altType": "above"
+     },
+     {
+      "fix": "AV522",
+      "alt": 3000,
+      "altType": "above"
+     }
+    ]
+   },
+   "missed": [
+    {
+     "fix": "AV528"
+    },
+    {
+     "fix": "EGN",
+     "alt": 4000
+    }
+   ]
+  },
+  {
+   "type": "SID",
+   "name": "BIBEX1E",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "AV033"
+    },
+    {
+     "fix": "AV035"
+    },
+    {
+     "fix": "BIBEX"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-15"
+  },
+  {
+   "type": "SID",
+   "name": "DDM1E",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "AV031"
+    },
+    {
+     "fix": "ATV"
+    },
+    {
+     "fix": "DDM"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-15"
+  },
+  {
+   "type": "SID",
+   "name": "KEA1E",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "AV033"
+    },
+    {
+     "fix": "AV035"
+    },
+    {
+     "fix": "KEA",
+     "alt": 24000,
+     "altType": "below"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-15"
+  },
+  {
+   "type": "SID",
+   "name": "KOR1E",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "AV031"
+    },
+    {
+     "fix": "ATV"
+    },
+    {
+     "fix": "KOR"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-15"
+  },
+  {
+   "type": "SID",
+   "name": "KRO2E",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "AV033"
+    },
+    {
+     "fix": "KRO"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-15"
+  },
+  {
+   "type": "SID",
+   "name": "ROPOX1E",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "AV031"
+    },
+    {
+     "fix": "ATV"
+    },
+    {
+     "fix": "ROPOX"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-15"
+  },
+  {
+   "type": "SID",
+   "name": "BIBEX1H",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "AV032"
+    },
+    {
+     "fix": "AV035"
+    },
+    {
+     "fix": "BIBEX"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-16"
+  },
+  {
+   "type": "SID",
+   "name": "DDM1H",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "AV030"
+    },
+    {
+     "fix": "AV038"
+    },
+    {
+     "fix": "ATV"
+    },
+    {
+     "fix": "DDM"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-16"
+  },
+  {
+   "type": "SID",
+   "name": "KEA1H",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "AV032"
+    },
+    {
+     "fix": "AV035"
+    },
+    {
+     "fix": "KEA",
+     "alt": 24000,
+     "altType": "below"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-16"
+  },
+  {
+   "type": "SID",
+   "name": "KOR1H",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "AV030"
+    },
+    {
+     "fix": "AV034",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV036"
+    },
+    {
+     "fix": "KOR"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-16"
+  },
+  {
+   "type": "SID",
+   "name": "KRO2H",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "AV032"
+    },
+    {
+     "fix": "AV037",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "KRO"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-16"
+  },
+  {
+   "type": "SID",
+   "name": "ROPOX1H",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "AV030"
+    },
+    {
+     "fix": "AV034",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV036"
+    },
+    {
+     "fix": "ROPOX"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-16"
+  },
+  {
+   "type": "SID",
+   "name": "BIBEX1M",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "AV210"
+    },
+    {
+     "fix": "AV212"
+    },
+    {
+     "fix": "AV216",
+     "alt": 3000,
+     "altType": "below"
+    },
+    {
+     "fix": "KEA",
+     "alt": 24000,
+     "altType": "below"
+    },
+    {
+     "fix": "BIBEX"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-17"
+  },
+  {
+   "type": "SID",
+   "name": "DDM1M",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "AV210"
+    },
+    {
+     "fix": "AV212"
+    },
+    {
+     "fix": "AV214",
+     "alt": 5000,
+     "altType": "below"
+    },
+    {
+     "fix": "DDM"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-17"
+  },
+  {
+   "type": "SID",
+   "name": "KEA1M",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "AV210"
+    },
+    {
+     "fix": "AV212"
+    },
+    {
+     "fix": "AV216",
+     "alt": 3000,
+     "altType": "below"
+    },
+    {
+     "fix": "KEA",
+     "alt": 24000,
+     "altType": "below"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-17"
+  },
+  {
+   "type": "SID",
+   "name": "KOR1M",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "AV210"
+    },
+    {
+     "fix": "EGN",
+     "alt": 5000,
+     "altType": "below"
+    },
+    {
+     "fix": "KOR"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-17"
+  },
+  {
+   "type": "SID",
+   "name": "KRO2M",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "AV210"
+    },
+    {
+     "fix": "AV212"
+    },
+    {
+     "fix": "AV216",
+     "alt": 3000,
+     "altType": "below"
+    },
+    {
+     "fix": "KEA",
+     "alt": 24000,
+     "altType": "below"
+    },
+    {
+     "fix": "KRO"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-17"
+  },
+  {
+   "type": "SID",
+   "name": "ROPOX1M",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "AV210"
+    },
+    {
+     "fix": "AV217",
+     "alt": 5000,
+     "altType": "below"
+    },
+    {
+     "fix": "AV218"
+    },
+    {
+     "fix": "ROPOX"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-17"
+  },
+  {
+   "type": "SID",
+   "name": "BIBEX1N",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "AV211"
+    },
+    {
+     "fix": "AV215",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 24000,
+     "altType": "below"
+    },
+    {
+     "fix": "BIBEX"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-18"
+  },
+  {
+   "type": "SID",
+   "name": "DDM1N",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "AV211"
+    },
+    {
+     "fix": "AV213",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-18"
+  },
+  {
+   "type": "SID",
+   "name": "KEA1N",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "AV211"
+    },
+    {
+     "fix": "AV215",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 24000,
+     "altType": "below"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-18"
+  },
+  {
+   "type": "SID",
+   "name": "KOR1N",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "AV211"
+    },
+    {
+     "fix": "AV213",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM"
+    },
+    {
+     "fix": "KOR"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-18"
+  },
+  {
+   "type": "SID",
+   "name": "KRO2N",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "AV211"
+    },
+    {
+     "fix": "AV215",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 24000,
+     "altType": "below"
+    },
+    {
+     "fix": "KRO"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-18"
+  },
+  {
+   "type": "SID",
+   "name": "ROPOX1N",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "AV211"
+    },
+    {
+     "fix": "AV213",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "ATV"
+    },
+    {
+     "fix": "ROPOX"
+    }
+   ],
+   "chart": "AD 2-LGAV-SID-18"
+  },
+  {
+   "type": "STAR",
+   "name": "ASTOV1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "ASTOV",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV500",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 6000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "ASTOV1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "ASTOV",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV500",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 6000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "BADEL1K",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "BADEL",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 6000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "BADEL1K",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "BADEL",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 6000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "BADEL1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "BADEL",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV501",
+     "alt": 4000,
+     "altType": "above"
+    },
+    {
+     "fix": "PELAG",
+     "alt": 4000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "BADEL1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "BADEL",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV501",
+     "alt": 4000,
+     "altType": "above"
+    },
+    {
+     "fix": "PELAG",
+     "alt": 4000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "BIBEX1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "BIBEX",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "BIBEX1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "BIBEX",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "NEMES1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "NEMES",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 6000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "NEMES1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "NEMES",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 6000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "NEVRA1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "NEVRA",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "NEVRA1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "NEVRA",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "OGSIL1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "OGSIL",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "OGSIL1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "OGSIL",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "PIKAD1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "PIKAD",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV502",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 4000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "PIKAD1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "PIKAD",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV502",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 4000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "RILIN1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "RILIN",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV502",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 4000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "RILIN1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "RILIN",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV502",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 4000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "ROPOX1K",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "ROPOX",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "ROPOX1K",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "ROPOX",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "ROPOX1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "ROPOX",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV504",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 4000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "ROPOX1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "ROPOX",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV504",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 4000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "SOREV1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "SOREV",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "SOREV1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "SOREV",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "VARIX1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "VARIX",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "VARIX1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "VARIX",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "VELOP1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "VELOP",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 6000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "VELOP1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "VELOP",
+     "alt": 6000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 6000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "XORKI1K",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "XORKI",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "XORKI1K",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "XORKI",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "XORKI1Q",
+   "runway": "03L",
+   "legs": [
+    {
+     "fix": "XORKI",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV503",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 4000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "XORKI1Q",
+   "runway": "03R",
+   "legs": [
+    {
+     "fix": "XORKI",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV503",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 4000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-4"
+  },
+  {
+   "type": "STAR",
+   "name": "ASTOV1R",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "ASTOV",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV500",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "ASTOV1R",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "ASTOV",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV500",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "ASTOV1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "ASTOV",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV500",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "ASTOV1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "ASTOV",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "AV500",
+     "alt": 9000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "BIBEX1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "BIBEX",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "BIBEX1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "BIBEX",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "NEMES1R",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "NEMES",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "NEMES1R",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "NEMES",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "NEMES1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "NEMES",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "NEMES1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "NEMES",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "NEVRA1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "NEVRA",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KRO",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "NEVRA1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "NEVRA",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KRO",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "OGSIL1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "OGSIL",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KRO",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "OGSIL1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "OGSIL",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KRO",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "PIKAD1R",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "PIKAD",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "PIKAD1R",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "PIKAD",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "PIKAD1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "PIKAD",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "PIKAD1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "PIKAD",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "RILIN1R",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "RILIN",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "RILIN1R",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "RILIN",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "EGN",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "RILIN1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "RILIN",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "RILIN1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "RILIN",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KOR",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "DDM",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "ROPOX1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "ROPOX",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "ROPOX1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "ROPOX",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "SOREV1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "SOREV",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "SOREV1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "SOREV",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "VARIX1R",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "VARIX",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "VARIX1R",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "VARIX",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "VARIX1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "VARIX",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KRO",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "VARIX1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "VARIX",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KRO",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "VELOP1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "VELOP",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "VELOP1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "VELOP",
+     "alt": 7000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 7000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "XORKI1W",
+   "runway": "21L",
+   "legs": [
+    {
+     "fix": "XORKI",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  },
+  {
+   "type": "STAR",
+   "name": "XORKI1W",
+   "runway": "21R",
+   "legs": [
+    {
+     "fix": "XORKI",
+     "alt": 8000,
+     "altType": "above"
+    },
+    {
+     "fix": "KEA",
+     "alt": 8000,
+     "altType": "above"
+    }
+   ],
+   "chart": "AD 2-LGAV-STAR-5"
+  }
+ ]
+}
