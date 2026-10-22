@@ -30,7 +30,7 @@ jobs:
           node-version: 22
       - name: Build the scope page
         env:
-          AIRWAVE_DEFAULT_SERVER: ${{ vars.AIRWAVE_SERVER_URL }}
+          AIRWAVE_DEFAULT_SERVER: ${{ vars.AIRWAVE_SERVER_URL || 'wss://airwave-lwhv.onrender.com/ws' }}
         run: node tools/build-demo.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

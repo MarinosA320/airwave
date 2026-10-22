@@ -17,6 +17,17 @@ Version 0.4.0. Default map: Greece (Athens FIR).
 | `data/layouts/` | Airport ground layouts. Fill it with `node tools/fetch-layouts.js`. |
 | `tools/` | Build scripts, the layout downloader and tests. |
 
+## The Airwave network
+
+| | Address |
+| --- | --- |
+| ATC scope (server) | https://airwave-lwhv.onrender.com |
+| ATC scope (GitHub Pages) | https://marinosa320.github.io/airwave/ |
+| Server for Airwave Pilot | `wss://airwave-lwhv.onrender.com/ws` (the default) |
+| Server status | https://airwave-lwhv.onrender.com/status |
+
+Controllers log on with the ATC password, pilots with the network password. The first connection after a quiet spell wakes the server, which takes about a minute.
+
 ## Running it online
 
 The server runs for free on [Render](https://render.com), deployed straight from this GitHub repo:

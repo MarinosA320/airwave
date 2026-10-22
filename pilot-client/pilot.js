@@ -16,7 +16,7 @@ const UI_PORT = Number(process.env.AIRWAVE_PILOT_PORT || 8090);
 const CONFIG_FILE = process.env.AIRWAVE_PILOT_CONFIG || path.join(__dirname, 'config.json');
 const RULES_FILE = path.join(__dirname, 'matching-rules.json');
 const DEFAULTS = {
-  server: process.env.AIRWAVE_SERVER || 'ws://localhost:8080/ws', password: '', callsign: '', name: '', type: 'A20N', sim: 'msfs', xplaneHost: '127.0.0.1',
+  server: process.env.AIRWAVE_SERVER || 'wss://airwave-lwhv.onrender.com/ws', password: '', callsign: '', name: '', type: 'A20N', sim: 'msfs', xplaneHost: '127.0.0.1',
   autoTune: true, fp: { dep: '', arr: '', route: '', cruise: 36000 }
 };
 

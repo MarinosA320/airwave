@@ -19,6 +19,7 @@ jobs:
         run: |
           node tools/test-procedures.js
           node tools/test-layouts.js
+          node tools/test-passwords.js
       - name: Start a server
         run: |
           node server/server.js --port 8080 > server.log 2>&1 &

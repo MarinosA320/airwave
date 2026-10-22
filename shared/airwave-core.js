@@ -272,8 +272,9 @@
       if (this.byCallsign(cs)) return s.error(cs + ' is already in use.');
       const role = m.role === 'atc' ? 'atc' : m.role === 'observer' ? 'observer' : 'pilot';
       const pw = String(m.password || '');
-      if (this.password && pw !== this.password && !(role === 'atc' && this.atcPassword && pw === this.atcPassword)) return s.error('Wrong network password.');
-      if (role === 'atc' && this.atcPassword && pw !== this.atcPassword) return s.error('Controller positions need the ATC password.');
+      // Simulated traffic runs inside the server, so it never needs a password.
+      if (!s.isBot && this.password && pw !== this.password && !(role === 'atc' && this.atcPassword && pw === this.atcPassword)) return s.error('Wrong network password.');
+      if (!s.isBot && role === 'atc' && this.atcPassword && pw !== this.atcPassword) return s.error('Controller positions need the ATC password.');
       if (role === 'atc') {
         const fac = this.sector.facilities.find(f => f.id === m.facility);
         if (!fac) return s.error('Unknown ATC position ' + m.facility + '.');
