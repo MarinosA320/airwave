@@ -356,6 +356,38 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
       }
     });
   }
+  // Taxiway names repeat along the whole line, apron names sit in the middle; overlapping labels are skipped.
+  function groundLabels(L) {
+    const placed = [], sel = st.sel || {};
+    const label = (text, x, y, color) => {
+      if (x < 0 || y < 0 || x > W || y > H) return;
+      ctx.font = font(11, 600); const w = ctx.measureText(text).width + 6, h = 15;
+      for (const r of placed) if (Math.abs(r.x - x) < (r.w + w) / 2 + 4 && Math.abs(r.y - y) < h + 2) return;
+      placed.push({ x, y, w });
+      ctx.fillStyle = 'rgba(11,18,21,0.78)'; ctx.fillRect(x - w / 2, y - h / 2, w, h);
+      ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, x, y + 0.5);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    };
+    L.aprons.forEach((a, i) => {
+      if (!a.ref) return;
+      const pts = a.poly.map(PL), xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+      if (Math.max(...xs) - Math.min(...xs) < 40) return;
+      label(a.ref, xs.reduce((s, v) => s + v, 0) / xs.length, ys.reduce((s, v) => s + v, 0) / ys.length, sel.kind === 'apron' && sel.i === i ? C.amber : C.text);
+    });
+    L.taxiways.forEach((t, i) => {
+      if (!t.ref) return;
+      const pts = t.line.map(PL), color = C.amber;
+      let total = 0; for (let k = 1; k < pts.length; k++) total += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]);
+      if (total < 25) return;
+      const step = 160, n = Math.max(1, Math.floor(total / step));
+      let next = (total - (n - 1) * step) / 2, run = 0;
+      for (let k = 1; k < pts.length; k++) {
+        const [ax, ay] = pts[k - 1], [bx, by] = pts[k], d = Math.hypot(bx - ax, by - ay);
+        while (d && next <= run + d) { const f = (next - run) / d; label(t.ref, ax + (bx - ax) * f, ay + (by - ay) * f, color); next += step; }
+        run += d;
+      }
+    });
+  }
   function drawLayout() {
     const ap = airportOf(st.airport); if (!ap) return;
     const L = groundLayout(ap); if (!L) return;
@@ -365,11 +397,11 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
     L.taxiways.forEach((t, i) => {
       const on = sel.kind === 'taxiway' && sel.i === i;
       path(t.line); ctx.strokeStyle = on ? C.amber : 'rgba(214,226,229,0.45)'; ctx.lineWidth = Math.max(on ? 3 : 1.5, Math.min(12, sc * 0.012)); ctx.stroke();
-      if (t.ref && sc > 150) { const q = t.line[Math.floor(t.line.length / 2)]; const [x, y] = PL(q); ctx.fillStyle = on ? C.amber : C.amber; ctx.font = font(11, 600); ctx.textAlign = 'center'; ctx.fillText(t.ref, x, y - 5); ctx.textAlign = 'left'; }
       if (on) for (const q of t.line) { const [x, y] = PL(q); ctx.fillStyle = C.amber; ctx.fillRect(x - 3, y - 3, 6, 6); }
     });
     ctx.lineCap = 'butt';
-    const dots = (list, kind, color) => list.forEach((s, i) => {
+    if (sc > 150) groundLabels(L);
+    const dots =(list, kind, color) => list.forEach((s, i) => {
       const [x, y] = P(s); const on = sel.kind === kind && sel.i === i;
       ctx.fillStyle = on ? C.amber : color; ctx.fillRect(x - (on ? 4 : 2.5), y - (on ? 4 : 2.5), on ? 8 : 5, on ? 8 : 5);
       if (s.ref && (sc > 300 || on)) { ctx.font = font(10, on ? 600 : 400); ctx.fillText(s.ref, x + 6, y + 3); }

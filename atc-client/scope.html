@@ -732,6 +732,38 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
   const onScreen = (x, y, pad = 60) => x > -pad && y > -pad && x < W + pad && y < H + pad;
   function polyPath(pts) { ctx.beginPath(); pts.forEach((q, i) => { const [x, y] = P({ lat: q[0], lon: q[1] }); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); }
 
+  // Ground labels: taxiway names repeat along the whole line, apron names sit in the middle. Labels that would overlap are skipped.
+  function groundLabels(L, opts) {
+    const placed = [];
+    const free = (x, y, w, h) => { if (!onScreen(x, y, 0)) return false; for (const r of placed) if (Math.abs(r.x - x) < (r.w + w) / 2 + 4 && Math.abs(r.y - y) < (r.h + h) / 2 + 2) return false; placed.push({ x, y, w, h }); return true; };
+    const label = (text, x, y, color, px) => {
+      ctx.font = fontData(px, 600); const w = ctx.measureText(text).width + 6, h = px + 4;
+      if (!free(x, y, w, h)) return;
+      ctx.fillStyle = 'rgba(11,18,21,0.75)'; ctx.fillRect(x - w / 2, y - h / 2, w, h);
+      ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, x, y + 0.5); ctx.textBaseline = 'alphabetic';
+    };
+    if (opts.aprons) for (const a of L.aprons) {
+      if (!a.ref) continue;
+      const pts = a.poly.map(q => P({ lat: q[0], lon: q[1] }));
+      const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+      if (Math.max(...xs) - Math.min(...xs) < 40) continue; // too small on screen
+      label(a.ref, xs.reduce((s, v) => s + v, 0) / xs.length, ys.reduce((s, v) => s + v, 0) / ys.length, opts.apronColor, 11);
+    }
+    if (opts.taxiways) for (const t of L.taxiways) {
+      if (!t.ref) continue;
+      const pts = t.line.map(q => P({ lat: q[0], lon: q[1] }));
+      let total = 0; for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      if (total < 25) continue;
+      const step = 160, n = Math.max(1, Math.floor(total / step));
+      let next = (total - (n - 1) * step) / 2, run = 0; // spread evenly, starting half a gap in
+      for (let i = 1; i < pts.length && n; i++) {
+        const [ax, ay] = pts[i - 1], [bx, by] = pts[i], d = Math.hypot(bx - ax, by - ay);
+        while (d && next <= run + d) { const f = (next - run) / d; label(t.ref, ax + (bx - ax) * f, ay + (by - ay) * f, opts.taxiColor, 11); next += step; }
+        run += d;
+      }
+    }
+  }
+
   function drawLayout(ap, L, sc) {
     ctx.save();
     for (const a of L.aprons) { polyPath(a.poly); ctx.closePath(); ctx.fillStyle = 'rgba(120,150,160,0.10)'; ctx.fill(); }
@@ -751,9 +783,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     for (const r of L.runways) { polyPath(r.line); ctx.stroke(); }
     ctx.lineCap = 'butt';
     if (sc > 250) {
-      ctx.font = fontData(11, 600); ctx.fillStyle = C.amber; ctx.textAlign = 'center';
-      const done = new Set();
-      for (const t of L.taxiways) { if (!t.ref || done.has(t.ref)) continue; done.add(t.ref); const q = t.line[Math.floor(t.line.length / 2)]; const [x, y] = P({ lat: q[0], lon: q[1] }); if (onScreen(x, y, 0)) ctx.fillText(t.ref, x, y - 4); }
+      groundLabels(L, { taxiways: true, aprons: true, taxiColor: C.amber, apronColor: C.muted });
       ctx.fillStyle = C.alert;
       for (const h of L.holding) { const [x, y] = P(h); if (onScreen(x, y, 0)) ctx.fillRect(x - 4, y - 1, 8, 2); }
     }
