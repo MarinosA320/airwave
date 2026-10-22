@@ -8,7 +8,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const VERSION = '0.9.0';
+  const VERSION = '0.9.1';
 
   // ---------------------------------------------------------------- geo helpers
   const toRad = d => d * Math.PI / 180;
@@ -838,7 +838,7 @@
         lat: +p.pos.lat.toFixed(6), lon: +p.pos.lon.toFixed(6), alt: p.pos.alt, hdg: p.pos.hdg, gs: p.pos.gs, vs: p.pos.vs,
         onGround: p.pos.onGround, pitch: p.pos.pitch, bank: p.pos.bank,
         fp: p.fp, owner: p.owner, handoff: p.handoff, cleared: p.cleared, proc: p.procName || null, rwy: p.rwy || null,
-        req: p.req || null, emergency: p.emergency || null, phase: p.phase || null
+        req: p.req || null, emergency: p.emergency || null, phase: p.phase || null, rt: p.rt || null
       }));
     }
 
@@ -934,6 +934,21 @@
     push() {
       this.session.receive({ t: 'pos', lat: this.lat, lon: this.lon, alt: Math.round(this.alt), hdg: Math.round(this.hdg), gs: Math.round(this.gs()), vs: Math.round(this.vs || 0), squawk: this.squawk, onGround: this.onGround });
       this.session.phase = PHASE_TAG[this.phase] || null;
+      if ((this.rtAt = (this.rtAt || 0) - 1) <= 0) { this.rtAt = 4; this.session.rt = this.remainingRoute(); }
+    }
+    // What is left of the route, for the scope: [id, lat, lon, alt, altType] (taxi routes have no ids).
+    remainingRoute() {
+      const pt = (w, id) => [id == null ? w.id || '' : id, +w.lat.toFixed(4), +w.lon.toFixed(4), w.alt || 0, w.altType || ''];
+      if (this.onGround && this.path && ['taxi', 'taxiin', 'pushed', 'vacated', 'lineup'].includes(this.phase)) {
+        const end = this.phase === 'taxi' ? this.holdIdx + 1 : this.path.length;
+        const pts = this.path.slice(this.pi, end);
+        const step = Math.max(1, Math.ceil(pts.length / 30));
+        return pts.filter((p, i) => i % step === 0 || i === pts.length - 1).map((p, i, a) => pt(p, i === a.length - 1 ? (this.phase === 'taxi' ? 'HP ' + this.geo.rwy.id : this.stand ? this.stand.ref : '') : ''));
+      }
+      if (this.phase !== 'air' && this.phase !== 'flare') return null;
+      const out = this.mode === 'final' ? [] : this.route.slice(this.wp).map(w => pt(w, w.id === 'EXIT' ? 'to ' + this.arr : w.id === 'GA' ? 'GO AROUND' : w.id));
+      if (this.arriving && (!out.length || out[out.length - 1][0] !== 'RW' + this.geo.rwy.id)) out.push(pt(this.geo.thr, 'RW' + this.geo.rwy.id));
+      return out.slice(0, 24);
     }
     gs() { return this.onGround || this.phase === 'flare' ? this.gspd : this.ias * (1 + this.alt / 1000 * 0.018); }
     fix(id) { const f = this.sector.fixIndex.get(id); return f ? { id, lat: f.lat, lon: f.lon } : null; }

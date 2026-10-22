@@ -257,6 +257,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
           <label><input type="checkbox" id="lyAirways" checked> Airways</label>
           <label><input type="checkbox" id="lyWpt"> Waypoints</label>
           <label><input type="checkbox" id="lyTerrain"> Terrain</label>
+          <label><input type="checkbox" id="lyRoute" checked> Route and ETAs</label>
         </div>
         <p class="hint" id="mapNote"></p>
       </section>
@@ -907,6 +908,76 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     if (e.target.id === 'iHdg') { const a = st.traffic.find(x => x.cs === st.selected); const v = Number(e.target.value); if (a && v) send({ t: 'instr', to: a.cs, kind: 'hdg', value: v, dir: G.angleDiff(a.hdg, v) < 0 ? 'L' : 'R' }); }
   });
 
+  // ------------------------------------------------------------ route and ETAs of the selected aircraft
+  // Simulated traffic sends the route it is flying; for pilots the filed route is read (SIDs, STARs and airways expanded).
+  function filedRoute(a) {
+    const fp = a.fp || {}, M = st.map, pts = [];
+    const dep = M.airports.find(x => x.icao === fp.dep), arr = M.airports.find(x => x.icao === fp.arr);
+    const fixPt = id => { const f = M.fixIndex.get(id); return f ? [id, f.lat, f.lon, 0, ''] : null; };
+    const add = p => { if (p && !(pts.length && pts[pts.length - 1][0] === p[0])) pts.push(p); };
+    if (dep) add([dep.icao, dep.lat, dep.lon, 0, '']);
+    const toks = String(fp.route || '').toUpperCase().split(/\s+/).filter(Boolean);
+    for (let k = 0; k < toks.length; k++) {
+      const t = toks[k].replace(/\/.*$/, '');
+      const sid = dep && A.proceduresFor(dep, 'SID').find(p => p.name === t);
+      const star = arr && A.proceduresFor(arr, 'STAR').find(p => p.name === t);
+      if (sid || star) { A.resolveLegs(M, sid || star).forEach(l => add([l.id, l.lat, l.lon, l.alt || 0, l.altType || ''])); continue; }
+      if (M.fixIndex.has(t)) { add(fixPt(t)); continue; }
+      // Airway: walk it from the previous fix to the next one named in the route.
+      const segs = (M.airways || []).filter(w => w[2] === t);
+      const from = pts.length && pts[pts.length - 1][0], to = toks[k + 1] && toks[k + 1].replace(/\/.*$/, '');
+      if (segs.length && from && to && M.fixIndex.has(to)) {
+        const prev = new Map([[from, null]]), queue = [from];
+        while (queue.length) { const c = queue.shift(); if (c === to) break; for (const [x, y] of segs) for (const [u, v] of [[x, y], [y, x]]) if (u === c && !prev.has(v)) { prev.set(v, c); queue.push(v); } }
+        if (prev.has(to)) { const chain = []; for (let c = to; c && c !== from; c = prev.get(c)) chain.unshift(c); chain.slice(0, -1).forEach(id => add(fixPt(id))); }
+      }
+    }
+    if (arr) add([arr.icao, arr.lat, arr.lon, 0, '']);
+    return pts.length > 1 ? pts : null;
+  }
+  // Drops the part of the route already flown: everything before the leg the aircraft is on.
+  function routeAhead(a, pts) {
+    if (a.rt) return pts;
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p = { lat: pts[i][1], lon: pts[i][2] }, q = { lat: pts[i + 1][1], lon: pts[i + 1][2] };
+      const d = G.distNm(a, p) + G.distNm(a, q) - G.distNm(p, q);
+      if (d < bd) { bd = d; best = i + 1; }
+    }
+    return pts.slice(best);
+  }
+  function drawRoute(a, sc) {
+    const raw = a.rt || filedRoute(a); if (!raw || !raw.length) return;
+    const pts = routeAhead(a, raw); if (!pts.length) return;
+    const spd = a.gs > 60 ? a.gs : a.onGround ? 15 : a.alt < 10000 ? 250 : 420;
+    const now = Date.now();
+    ctx.save();
+    ctx.strokeStyle = C.amber; ctx.globalAlpha = 0.75; ctx.lineWidth = 1.4; ctx.setLineDash([6, 4]);
+    ctx.beginPath(); const [x0, y0] = P(a); ctx.moveTo(x0, y0);
+    for (const p of pts) { const [x, y] = P({ lat: p[1], lon: p[2] }); ctx.lineTo(x, y); }
+    ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    let dist = 0, prev = a, lastLabel = null;
+    ctx.font = fontData(11, 500); ctx.textAlign = 'left';
+    pts.forEach((p, i) => {
+      const pos = { lat: p[1], lon: p[2] };
+      dist += G.distNm(prev, pos); prev = pos;
+      const [x, y] = P(pos);
+      if (!onScreen(x, y, 0)) return;
+      ctx.fillStyle = C.amber; ctx.fillRect(x - 2.5, y - 2.5, 5, 5);
+      if (!p[0]) return;                                                // taxi points have no name
+      if (lastLabel && Math.hypot(x - lastLabel[0], y - lastLabel[1]) < 40 && i < pts.length - 1) return; // keep labels readable
+      const min = dist / spd * 60;
+      const eta = new Date(now + min * 60000).toISOString().slice(11, 16).replace(':', '');
+      const cons = p[3] ? ' ' + (p[3] > (st.map.transitionAlt || 6000) ? 'FL' + fl(p[3]) : p[3]) + ({ above: '+', below: '-' }[p[4]] || '') : '';
+      const text = p[0] + cons + '  ' + eta + 'Z ' + (min < 1 ? '<1' : '+' + Math.round(min)) + "'";
+      const w = ctx.measureText(text).width;
+      ctx.fillStyle = 'rgba(11,18,21,0.8)'; ctx.fillRect(x + 6, y - 16, w + 6, 15);
+      ctx.fillStyle = C.amber; ctx.fillText(text, x + 9, y - 5);
+      lastLabel = [x, y];
+    });
+    ctx.restore();
+  }
+
   // ------------------------------------------------------------ airport layouts (OpenStreetMap, fetched on demand)
   function layoutFor(ap) {
     if (!st.layoutBase || !$('lyGround').checked) return null;
@@ -1141,6 +1212,10 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       if (sc < 2.2) { ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill(); }
       ctx.font = fontData(11, 500); ctx.textAlign = 'left'; ctx.fillText(ap.icao, x + 7, y - 6);
     }
+
+    // Route of the selected aircraft, with an ETA at each waypoint
+    const selA = st.selected && st.traffic.find(t => t.cs === st.selected);
+    if (selA && $('lyRoute').checked) drawRoute(selA, sc);
 
     // Traffic
     const blink = Math.floor(Date.now() / 500) % 2 === 0;

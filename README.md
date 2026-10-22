@@ -169,6 +169,10 @@ Coverage is top-down: an aircraft talks to the most specific online controller c
 
 Commands chain: `AEE123 A L270 FL80 S220`.
 
+**Route and ETAs:** select an aircraft to see its remaining route as a dashed line, with each waypoint's ETA (UTC and minutes to go) and any altitude
+restriction. Simulated traffic shows the route it is actually flying (SID, STAR, approach, or its taxi route on the ground). For pilots, the filed
+route is read, with SIDs, STARs and airways expanded. Turn it off with **Route and ETAs** in the Map panel.
+
 **Measuring and QDM/QDR:** click the ↔ button (or hold Shift) and drag between two points. Line ends snap to aircraft, navaids and airports.
 A line between an aircraft and a navaid shows QDM, QDR, distance and time to go, and follows the aircraft. Bearings are magnetic
 (World Magnetic Model, about 5°E over Greece). Right-click a line's label to remove it, or ✕ to clear all. The selected aircraft panel
