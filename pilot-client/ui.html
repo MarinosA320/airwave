@@ -117,6 +117,12 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
       <h2>Your aircraft</h2>
       <div class="own" id="own"></div>
     </section>
+    <section>
+      <h2>In-sim panels</h2>
+      <p class="hint">MSFS: open the Airwave button on the top toolbar. X-Plane: Plugins &gt; Airwave, or bind the commands airwave/toggle_panel and airwave/readback to keys or joystick buttons.</p>
+      <button class="btn" id="addonsBtn">Install or update the panels in my simulators</button>
+      <ul class="hint" id="addonsOut" style="padding-left:18px;margin:8px 0 0"></ul>
+    </section>
   </div>
 
   <div class="col">
@@ -168,7 +174,11 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
 
   function connectUi() {
     ws = new WebSocket('ws://' + location.host + '/ui');
-    ws.onmessage = e => { const m = JSON.parse(e.data); if (m.t === 'state') render(m); else if (m.t === 'msg') msg(m); else if (m.t === 'log') applog(m.line); };
+    ws.onmessage = e => {
+      const m = JSON.parse(e.data);
+      if (m.t === 'state') render(m); else if (m.t === 'msg') msg(m); else if (m.t === 'log') applog(m.line);
+      else if (m.t === 'addons') { $('addonsBtn').disabled = false; $('addonsOut').innerHTML = m.report.map(r => '<li>' + (r.ok === true ? '✓ ' : r.ok === false ? '✕ ' : '') + esc(r.sim + ': ' + r.text) + '</li>').join(''); }
+    };
     ws.onclose = () => { $('netText').textContent = 'Lost contact with Airwave Pilot. Is it still running?'; setTimeout(connectUi, 2000); };
   }
   const send = m => ws && ws.readyState === 1 && ws.send(JSON.stringify(m));
@@ -222,6 +232,7 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
   $('connectBtn').onclick = () => { saveForm(); send({ t: st && st.wantOnline ? 'disconnect' : 'connect' }); };
   $('atc').onclick = e => { const b = e.target.closest('[data-f]'); if (b) send({ t: 'tune', freq: b.dataset.f }); };
   $('readback').onclick = () => send({ t: 'readback' });
+  $('addonsBtn').onclick = () => { $('addonsBtn').disabled = true; $('addonsOut').innerHTML = '<li>Looking for MSFS and X-Plane…</li>'; send({ t: 'installAddons' }); };
   $('tx').addEventListener('submit', e => { e.preventDefault(); const t = $('txt').value.trim(); if (t) { send({ t: 'send', text: t }); $('txt').value = ''; } });
 
   function addLine(el, html, max) {

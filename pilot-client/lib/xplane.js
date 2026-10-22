@@ -87,6 +87,12 @@ class XPlaneAdapter extends EventEmitter {
         this.plugin = Object.assign(st, { seen: Date.now() });
         if (first) { this.log(`Airwave X-Plane plugin connected (${st.models || 0} CSL models)`); this.emit('plugin', st); }
       } catch (e) { /* ignore */ }
+      return;
+    }
+    if (head === 'AWCM') { // a button in the X-Plane panel: AWCM readback | tune 118.575 | connect | disconnect
+      const [cmd, arg] = msg.toString('utf8', 5).trim().split(/\s+/);
+      if (cmd === 'tune' && /^1[1-3]\d\.\d{3}$/.test(arg || '')) this.emit('command', { t: 'tune', freq: arg });
+      else if (['readback', 'connect', 'disconnect'].includes(cmd)) this.emit('command', { t: cmd });
     }
   }
 
@@ -108,10 +114,27 @@ class XPlaneAdapter extends EventEmitter {
     const buf = Buffer.from('AWTR\n' + lines.join('\n'), 'utf8');
     if (buf.length < 60000) this.sock.send(buf, this.pluginPort, '127.0.0.1');
   }
+  // Sends the in-sim panel contents to the plugin (see panelLines).
+  panel(p) {
+    if (!this.sock) return;
+    const buf = Buffer.from('AWPN\n' + panelLines(p).join('\n'), 'utf8');
+    if (buf.length < 8000) this.sock.send(buf, this.pluginPort, '127.0.0.1');
+  }
   stats() {
     return { shown: this.plugin ? this.list.size : 0, total: this.list.size, models: this.plugin ? this.plugin.models || 0 : 0, plugin: !!this.plugin,
       matches: this.plugin && this.plugin.matches ? this.plugin.matches : [] };
   }
 }
 
-module.exports = { XPlaneAdapter, rrefPacket, parseRref, DATAREFS };
+// AWPN packet lines: N|net|callsign|text  F|freq|station|squawk  I|id|readBack|from|text|contactFreq  A|id|freq|name  M|from|text|mine
+function panelLines(p) {
+  const c = v => String(v == null ? '' : v).replace(/[|\r\n]/g, ' ').slice(0, 300);
+  const out = ['N|' + c(p.net) + '|' + c(p.callsign) + '|' + c(p.netText), 'F|' + c(p.freq) + '|' + c(p.station) + '|' + c(p.squawk)];
+  const i = p.instr;
+  if (i) out.push(['I', i.id, i.readBack ? 1 : 0, c(i.from), c(i.text), c(i.kind === 'contact' ? i.freq : '')].join('|'));
+  for (const a of (p.atc || []).slice(0, 12)) out.push(['A', c(a.id), c(a.freq), c(a.name)].join('|'));
+  for (const m of (p.msgs || []).slice(-8)) out.push(['M', c(m.from), c(m.text), m.mine ? 1 : 0].join('|'));
+  return out;
+}
+
+module.exports = { XPlaneAdapter, rrefPacket, parseRref, panelLines, DATAREFS };

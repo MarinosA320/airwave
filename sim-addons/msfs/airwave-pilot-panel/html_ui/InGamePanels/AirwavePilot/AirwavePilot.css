@@ -1,0 +1,6 @@
+ingame-ui#AirwavePilotPanel { display: flex; flex-direction: column; width: 100% !important; height: 100% !important; }
+ingame-ui#AirwavePilotPanel .ingameUiWrapper,
+ingame-ui#AirwavePilotPanel .ingameUiContent { display: flex !important; flex-direction: column !important; flex: 1 1 auto !important; width: 100% !important; height: 100% !important; min-width: 0 !important; min-height: 0 !important; overflow: hidden !important; padding: 0 !important; }
+#AirwaveWrap { display: flex; flex-direction: column; flex: 1 1 auto; width: 100%; height: 100%; min-height: 0; background: #0b1215; }
+#AirwaveFrame { flex: 1 1 auto; width: 100%; height: 100%; border: 0; display: none; background: #0b1215; }
+#AirwaveWaiting { padding: 1.2em; color: #d6e2e5; font-size: 1.1em; line-height: 1.5; }

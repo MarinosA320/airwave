@@ -6,6 +6,7 @@ on:
   push:
     paths: ['xplane-plugin/**', '.github/workflows/xplane-plugin.yml']
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   build:

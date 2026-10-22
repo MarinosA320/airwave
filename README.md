@@ -67,16 +67,43 @@ On Windows you can also double-click `start-server.cmd`.
 
 ## Flying: Airwave Pilot
 
-1. Run `npm install` once, then double-click `start-pilot.cmd` (or run `npm run pilot`). Your browser opens http://localhost:8090.
+### Install (Windows)
+
+Download **[AirwavePilotSetup.exe](https://github.com/MarinosA320/airwave/releases/latest/download/AirwavePilotSetup.exe)** and run it.
+It installs for your Windows user only, so it doesn't ask for administrator rights, and Node.js is built in. It also:
+
+- adds **Airwave Pilot** to the Start menu, plus a desktop shortcut if you tick that option;
+- puts the **Airwave toolbar panel** into the Community folder of MSFS 2020 and 2024 (Steam and Microsoft Store);
+- puts the **Airwave plugin** into every X-Plane 12 it finds.
+
+The setup isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC". Click **More info**, then **Run anyway**.
+Installed a simulator later, or moved it? Use **Install or update the panels in my simulators** in Airwave Pilot.
+Uninstalling removes the panels again but keeps the CSL models you added to X-Plane.
+
+From the source instead: run `npm install` once, then double-click `start-pilot.cmd` (or run `npm run pilot`).
+
+### Use
+
+1. Start **Airwave Pilot**. Its window opens in your browser at http://localhost:8090.
 2. Pick your simulator, enter your callsign (e.g. `AEE602`), aircraft type (e.g. `A20N`) and flight plan, then press **Connect**.
 3. Tune a controller by clicking it under **Online ATC**, or just set COM1 in your cockpit: Airwave follows your COM1 radio.
 4. Instructions appear in the amber box. **Read back** sends the readback, and for "contact ..." it also changes frequency.
 
 **Demo** mode flies a pretend aircraft near Athens, for trying everything without a simulator.
 
+### In-sim panel
+
+You don't need to leave the sim. The panel shows your frequency and station, the last ATC instruction with a **Read back** button,
+radio messages and a reply box, and the controllers online (click one to tune).
+
+- **MSFS 2020 / 2024:** click the **Airwave** button on the top toolbar. The panel is a window onto Airwave Pilot, which must be running.
+- **X-Plane 12:** **Plugins > Airwave > Show / hide ATC panel**. It opens by itself when a new instruction arrives.
+  In X-Plane's keyboard or joystick settings, search for "Airwave" to bind `airwave/toggle_panel` and `airwave/readback`.
+  Read back from a joystick button is handy on final.
+
 ### MSFS 2024 and 2020
 
-Nothing to install in the sim. Airwave Pilot connects through SimConnect when MSFS is running.
+Airwave Pilot connects through SimConnect when MSFS is running.
 Other pilots appear as AI aircraft, matched to what you have installed:
 
 - **MSFS 2024:** Airwave asks the sim for every installed aircraft and livery.
@@ -87,12 +114,12 @@ a similar aircraft with the airline's livery, then a similar aircraft. The Airwa
 
 ### X-Plane 12
 
-1. Copy the `Airwave` folder from `Airwave-XPlane-plugin.zip` into `X-Plane 12/Resources/plugins/`.
-2. Put CSL model packs into `plugins/Airwave/Resources/CSL/` (Bluebell CSL is a good free set; LiveTraffic or xPilot CSL folders work too).
+1. The setup installs the plugin. Without the setup, copy the `Airwave` folder from the plugin download into `X-Plane 12/Resources/plugins/`.
+2. Put CSL model packs into `plugins/Airwave/Resources/CSL/`. Bluebell CSL is a good free set; LiveTraffic or xPilot CSL folders work too.
 3. Start X-Plane, then Airwave Pilot with **X-Plane 12** selected.
 
 Your position is read over X-Plane's built-in network data (UDP 49000), so no X-Plane settings need changing.
-The plugin listens on 127.0.0.1:49010 and reports which CSL model it picked for each aircraft.
+The plugin listens on 127.0.0.1:49010 and reports which CSL model it picked for each aircraft. The same link carries the ATC panel.
 
 Building the plugin yourself: run `xplane-plugin/get-xpmp2` and then CMake (see `xplane-plugin/CMakeLists.txt`), or push the
 project to GitHub, where `.github/workflows/xplane-plugin.yml` builds it for Windows, Mac and Linux.
@@ -189,6 +216,7 @@ node tools/test-pilot.js         Airwave Pilot: smoothing, model matching, X-Pla
 node tools/test-procedures.js    simulated pilots fly STARs, approaches and SIDs
 node tools/test-layouts.js       OpenStreetMap layout conversion
 node tools/test-editor.js        sector editor saves, map reloads and runway changes (starts its own server)
+node tools/test-panel.js         in-sim panels: X-Plane link, MSFS panel package, add-on installer
 ```
 
 ## Protocol

@@ -7,6 +7,11 @@
  *     callsign|type|airline|lat|lon|alt_ft|heading|pitch|roll|groundspeed_kt|gear(0/1)|onGround(0/1)|lights
  * XPMP2 picks a CSL model for each aircraft by ICAO type and airline (model matching), shows it on TCAS
  * and on the map, and the plugin reports back to Airwave Pilot which model it chose.
+ *
+ * In-sim panel: Airwave Pilot also sends "AWPN" packets (frequency, station, last ATC instruction, radio messages,
+ * controllers online) once a second. The plugin shows them in a floating window (Plugins > Airwave, or the command
+ * airwave/toggle_panel) and sends button presses back as "AWCM <command>" (readback, tune <freq>, connect, disconnect).
+ * airwave/readback reads back the last instruction, so it can be bound to a key or joystick button.
  */
 // Windows: the network headers must come before anything that pulls in <windows.h> (the X-Plane SDK does).
 #if IBM
@@ -21,6 +26,9 @@
 #include "XPLMPlugin.h"
 #include "XPLMProcessing.h"
 #include "XPLMUtilities.h"
+#include "XPLMDisplay.h"
+#include "XPLMGraphics.h"
+#include "XPLMMenus.h"
 #include "XPMPMultiplayer.h"
 #include "XPMPAircraft.h"
 
@@ -32,6 +40,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cmath>
+#include <algorithm>
 
 #if IBM
   typedef SOCKET sock_t;
@@ -160,6 +169,148 @@ static void SendStatus() {
     sendto(gSock, msg.c_str(), (int)msg.size(), 0, (sockaddr*)&gPeer, sizeof(gPeer));
 }
 
+// ------------------------------------------------------------------ in-sim panel
+struct PanelInstr { int id = 0; bool readBack = false; std::string from, text, contactFreq; };
+struct PanelAtc { std::string id, freq, name; };
+struct PanelMsg { std::string from, text; bool mine = false; };
+struct Panel {
+    std::string net = "offline", callsign, netText = "Start Airwave Pilot on this computer", freq = "---.---", station, squawk;
+    PanelInstr instr;
+    std::vector<PanelAtc> atc;
+    std::vector<PanelMsg> msgs;
+    float seen = -100;
+};
+static Panel gPanel;
+static XPLMWindowID gWin = nullptr;
+static XPLMCommandRef gCmdToggle = nullptr, gCmdReadback = nullptr;
+static int gLastInstrShown = 0;
+struct Button { int l, t, r, b; std::string action; };
+static std::vector<Button> gButtons;
+
+static void SendCommand(const std::string& c) {
+    if (!gSockOk || !gHavePeer) return;
+    std::string msg = "AWCM " + c;
+    sendto(gSock, msg.c_str(), (int)msg.size(), 0, (sockaddr*)&gPeer, sizeof(gPeer));
+}
+
+// AWPN lines: N|net|callsign|text  F|freq|station|squawk  I|id|readBack|from|text|contactFreq  A|id|freq|name  M|from|text|mine
+static void HandlePanel(const std::string& body, float now) {
+    Panel p; p.seen = now;
+    std::istringstream in(body); std::string line;
+    while (std::getline(in, line)) {
+        auto f = Split(line, '|');
+        if (f.empty()) continue;
+        if (f[0] == "N" && f.size() >= 4) { p.net = f[1]; p.callsign = f[2]; p.netText = f[3]; }
+        else if (f[0] == "F" && f.size() >= 4) { p.freq = f[1]; p.station = f[2]; p.squawk = f[3]; }
+        else if (f[0] == "I" && f.size() >= 6) { p.instr.id = atoi(f[1].c_str()); p.instr.readBack = f[2] == "1"; p.instr.from = f[3]; p.instr.text = f[4]; p.instr.contactFreq = f[5]; }
+        else if (f[0] == "A" && f.size() >= 4) p.atc.push_back({ f[1], f[2], f[3] });
+        else if (f[0] == "M" && f.size() >= 4) p.msgs.push_back({ f[1], f[2], f[3] == "1" });
+    }
+    // A new ATC instruction opens the panel so it is not missed.
+    if (p.instr.id && p.instr.id != gLastInstrShown && !p.instr.readBack) {
+        gLastInstrShown = p.instr.id;
+        if (gWin && !XPLMGetWindowIsVisible(gWin)) XPLMSetWindowIsVisible(gWin, 1);
+    }
+    gPanel = p;
+}
+
+static const float COL_TEXT[] = { 0.84f, 0.89f, 0.90f }, COL_MUTED[] = { 0.49f, 0.58f, 0.60f }, COL_BLUE[] = { 0.50f, 0.83f, 0.94f },
+                   COL_AMBER[] = { 0.94f, 0.75f, 0.31f }, COL_GREEN[] = { 0.45f, 0.83f, 0.62f };
+static void Text(const float* c, int x, int y, const std::string& s) { XPLMDrawString(const_cast<float*>(c), x, y, const_cast<char*>(s.c_str()), nullptr, xplmFont_Proportional); }
+static int TextWidth(const std::string& s) { return (int)XPLMMeasureString(xplmFont_Proportional, s.c_str(), (int)s.size()); }
+// Splits text into lines that fit the width.
+static std::vector<std::string> Wrap(const std::string& s, int width) {
+    std::vector<std::string> out; std::string line, word; std::istringstream in(s);
+    while (in >> word) {
+        std::string next = line.empty() ? word : line + " " + word;
+        if (!line.empty() && TextWidth(next) > width) { out.push_back(line); line = word; } else line = next;
+    }
+    if (!line.empty()) out.push_back(line);
+    return out;
+}
+static void DrawButton(int l, int t, const std::string& label, const std::string& action, const float* color, int minW = 0) {
+    int w = std::max(minW, TextWidth(label) + 16), h = 20;
+    XPLMDrawTranslucentDarkBox(l, t, l + w, t - h);
+    Text(color, l + 8, t - 14, label);
+    gButtons.push_back({ l, t, l + w, t - h, action });
+}
+
+static void DrawPanel(XPLMWindowID id, void*) {
+    int l, t, r, b; XPLMGetWindowGeometry(id, &l, &t, &r, &b);
+    XPLMSetGraphicsState(0, 0, 0, 0, 1, 1, 0);
+    gButtons.clear();
+    const int pad = 10, width = r - l - 2 * pad, lh = 15;
+    int x = l + pad, y = t - 18;
+    const bool linked = XPLMGetElapsedTime() - gPanel.seen < 4.0f;
+    if (!linked) {
+        for (auto& ln : Wrap("Airwave Pilot is not running. Start it from the desktop shortcut and choose X-Plane 12; this window connects by itself.", width)) { Text(COL_MUTED, x, y, ln); y -= lh; }
+        return;
+    }
+    // status line
+    Text(gPanel.net == "online" ? COL_GREEN : gPanel.net == "connecting" ? COL_AMBER : COL_MUTED, x, y, gPanel.callsign.empty() ? gPanel.net : gPanel.callsign + "  " + gPanel.net);
+    DrawButton(r - pad - 90, y + 14, gPanel.net == "offline" ? "Connect" : "Disconnect", gPanel.net == "offline" ? "connect" : "disconnect", COL_TEXT, 90);
+    y -= 26;
+    // frequency
+    Text(COL_BLUE, x, y, "COM1 " + gPanel.freq);
+    Text(COL_TEXT, x + 100, y, gPanel.station);
+    if (!gPanel.squawk.empty()) Text(COL_MUTED, r - pad - 60, y, "SQ " + gPanel.squawk);
+    y -= 22;
+    // last instruction and read back
+    if (gPanel.instr.id) {
+        Text(COL_AMBER, x, y, gPanel.instr.from); y -= lh;
+        for (auto& ln : Wrap(gPanel.instr.text, width)) { Text(COL_TEXT, x, y, ln); y -= lh; }
+        y -= 2;
+        if (gPanel.instr.readBack) { Text(COL_GREEN, x, y - 13, "Read back"); y -= 26; }
+        else {
+            DrawButton(x, y, gPanel.instr.contactFreq.empty() ? "Read back" : "Read back and switch to " + gPanel.instr.contactFreq, "readback", COL_AMBER, width);
+            y -= 28;
+        }
+    }
+    // radio messages (newest last)
+    Text(COL_MUTED, x, y, "RADIO"); y -= lh;
+    std::vector<std::pair<const float*, std::string>> lines;
+    for (auto& m : gPanel.msgs) for (auto& ln : Wrap(m.from + ": " + m.text, width)) lines.push_back({ m.mine ? COL_BLUE : COL_TEXT, ln });
+    const int atcRows = (int)((gPanel.atc.size() + 1) / 2);
+    const int room = std::max(1, (y - b - 30 - atcRows * 24) / lh);
+    for (size_t i = lines.size() > (size_t)room ? lines.size() - room : 0; i < lines.size(); i++) { Text(lines[i].first, x, y, lines[i].second); y -= lh; }
+    if (lines.empty()) { Text(COL_MUTED, x, y, "Messages on your frequency appear here."); y -= lh; }
+    // controllers online: click to tune
+    y = b + 10 + atcRows * 24;
+    Text(COL_MUTED, x, y, gPanel.atc.empty() ? "No controllers online" : "ATC ONLINE - click to tune"); y -= 6;
+    const int colW = (width - 6) / 2;
+    for (size_t i = 0; i < gPanel.atc.size(); i++) {
+        auto& a = gPanel.atc[i];
+        DrawButton(x + (int)(i % 2) * (colW + 6), y - (int)(i / 2) * 24, a.id + "  " + a.freq, "tune " + a.freq, a.freq == gPanel.freq ? COL_BLUE : COL_TEXT, colW);
+    }
+}
+static int ClickPanel(XPLMWindowID, int x, int y, XPLMMouseStatus status, void*) {
+    if (status != xplm_MouseDown) return 1;
+    for (auto& btn : gButtons) if (x >= btn.l && x <= btn.r && y <= btn.t && y >= btn.b) { SendCommand(btn.action); break; }
+    return 1;
+}
+static void KeyPanel(XPLMWindowID, char, XPLMKeyFlags, char, void*, int) {}
+static XPLMCursorStatus CursorPanel(XPLMWindowID, int, int, void*) { return xplm_CursorDefault; }
+static int WheelPanel(XPLMWindowID, int, int, int, int, void*) { return 0; }
+
+static void CreatePanel() {
+    int sl, st, sr, sb; XPLMGetScreenBoundsGlobal(&sl, &st, &sr, &sb);
+    XPLMCreateWindow_t w{}; w.structSize = sizeof(w);
+    w.left = sr - 400; w.right = sr - 40; w.top = st - 120; w.bottom = st - 560;
+    w.visible = 0; w.drawWindowFunc = DrawPanel; w.handleMouseClickFunc = ClickPanel; w.handleRightClickFunc = ClickPanel;
+    w.handleKeyFunc = KeyPanel; w.handleCursorFunc = CursorPanel; w.handleMouseWheelFunc = WheelPanel;
+    w.decorateAsFloatingWindow = xplm_WindowDecorationRoundRectangle; w.layer = xplm_WindowLayerFloatingWindows;
+    gWin = XPLMCreateWindowEx(&w);
+    XPLMSetWindowPositioningMode(gWin, xplm_WindowPositionFree, -1);
+    XPLMSetWindowResizingLimits(gWin, 300, 300, 800, 1200);
+    XPLMSetWindowTitle(gWin, "Airwave");
+}
+static int OnCommand(XPLMCommandRef cmd, XPLMCommandPhase phase, void*) {
+    if (phase != xplm_CommandBegin) return 0;
+    if (cmd == gCmdToggle && gWin) XPLMSetWindowIsVisible(gWin, !XPLMGetWindowIsVisible(gWin));
+    if (cmd == gCmdReadback && gPanel.instr.id && !gPanel.instr.readBack) SendCommand("readback");
+    return 0;
+}
+
 static float FlightLoop(float, float, int, void*) {
     const float now = XPLMGetElapsedTime();
     if (gSockOk) {
@@ -169,7 +320,9 @@ static float FlightLoop(float, float, int, void*) {
             int len = (int)recvfrom(gSock, buf, sizeof(buf) - 1, 0, (sockaddr*)&from, &fromLen);
             if (len <= 0) break;
             buf[len] = 0;
-            if (len < 5 || strncmp(buf, "AWTR", 4) != 0) continue;
+            if (len < 5) continue;
+            if (strncmp(buf, "AWPN", 4) == 0) { gPeer = from; gHavePeer = true; HandlePanel(std::string(buf + 5, len - 5), now); continue; }
+            if (strncmp(buf, "AWTR", 4) != 0) continue;
             gPeer = from; gHavePeer = true;
             std::istringstream in(std::string(buf + 5, len - 5));
             std::string line;
@@ -223,6 +376,15 @@ PLUGIN_API int XPluginStart(char* name, char* sig, char* desc) {
     const char* err = XPMPMultiplayerInit("Airwave", gResources.c_str(), PrefsInt, "A320", "AW");
     if (err && *err) { Log(std::string("init failed: ") + err); return 0; }
     LoadCSL(gResources + XPLMGetDirectorySeparator() + "CSL");
+    // Panel commands (bindable to keys and joystick buttons) and the Plugins > Airwave menu
+    gCmdToggle = XPLMCreateCommand("airwave/toggle_panel", "Airwave: show or hide the ATC panel");
+    gCmdReadback = XPLMCreateCommand("airwave/readback", "Airwave: read back the last ATC instruction");
+    XPLMRegisterCommandHandler(gCmdToggle, OnCommand, 1, nullptr);
+    XPLMRegisterCommandHandler(gCmdReadback, OnCommand, 1, nullptr);
+    int item = XPLMAppendMenuItem(XPLMFindPluginsMenu(), "Airwave", nullptr, 0);
+    XPLMMenuID menu = XPLMCreateMenu("Airwave", XPLMFindPluginsMenu(), item, nullptr, nullptr);
+    XPLMAppendMenuItemWithCommand(menu, "Show / hide ATC panel", gCmdToggle);
+    XPLMAppendMenuItemWithCommand(menu, "Read back last instruction", gCmdReadback);
     return 1;
 }
 
@@ -231,16 +393,22 @@ PLUGIN_API int XPluginEnable() {
     const char* err = XPMPMultiplayerEnable();
     if (err && *err) Log(std::string("TCAS/AI control not available: ") + err);
     XPLMRegisterFlightLoopCallback(FlightLoop, -1.0f, nullptr);
+    if (!gWin) CreatePanel();
     Log(gSockOk ? "listening for Airwave Pilot on 127.0.0.1:49010" : "network not available");
     return 1;
 }
 
 PLUGIN_API void XPluginDisable() {
     XPLMUnregisterFlightLoopCallback(FlightLoop, nullptr);
+    if (gWin) { XPLMDestroyWindow(gWin); gWin = nullptr; }
     gPlanes.clear();
     XPMPMultiplayerDisable();
     if (gSockOk) { CLOSESOCK(gSock); gSockOk = false; }
 }
 
-PLUGIN_API void XPluginStop() { XPMPMultiplayerCleanup(); }
+PLUGIN_API void XPluginStop() {
+    XPLMUnregisterCommandHandler(gCmdToggle, OnCommand, 1, nullptr);
+    XPLMUnregisterCommandHandler(gCmdReadback, OnCommand, 1, nullptr);
+    XPMPMultiplayerCleanup();
+}
 PLUGIN_API void XPluginReceiveMessage(XPLMPluginID, int, void*) {}

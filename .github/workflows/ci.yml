@@ -22,6 +22,7 @@ jobs:
           node tools/test-passwords.js
           node tools/test-clearances.js
           node tools/test-editor.js
+          node tools/test-panel.js
       - name: Start a server
         run: |
           node server/server.js --port 8080 > server.log 2>&1 &

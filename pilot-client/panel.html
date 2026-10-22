@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Airwave</title>
+<style>
+/* Shown inside the MSFS toolbar panel (an older embedded browser), so: flexbox only, plain colours, no web fonts. */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: #0b1215; color: #d6e2e5; font-family: "Segoe UI", Roboto, Arial, sans-serif; font-size: 15px; display: flex; flex-direction: column; overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.top { display: flex; align-items: center; padding: 8px 10px; background: #11191d; border-bottom: 1px solid #24333a; }
+.brand { font-weight: 700; letter-spacing: 2px; font-size: 13px; }
+.brand span { color: #7fd4f0; }
+.cs { margin-left: 10px; font-family: Consolas, "Courier New", monospace; color: #7d939a; font-size: 13px; }
+.grow { flex: 1; }
+.dot { width: 9px; height: 9px; border-radius: 5px; background: #7d939a; margin-right: 6px; }
+.dot.online { background: #72d39d; }
+.dot.connecting { background: #f0bf4f; }
+.net { font-size: 12px; color: #7d939a; }
+.btn { background: #172227; border: 1px solid #34525d; padding: 6px 10px; font-weight: 600; }
+.btn:hover { border-color: #7fd4f0; }
+.btn.primary { background: #7fd4f0; border-color: #7fd4f0; color: #062029; }
+.btn.done { background: #172227; border-color: #72d39d; color: #72d39d; }
+.radio { display: flex; align-items: baseline; padding: 10px 10px 8px; }
+.freq { font-family: Consolas, "Courier New", monospace; font-size: 28px; font-weight: 700; color: #7fd4f0; }
+.station { margin-left: 10px; color: #d6e2e5; font-size: 14px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sq { font-family: Consolas, monospace; color: #7d939a; font-size: 12px; margin-left: 8px; white-space: nowrap; }
+.instr { margin: 0 10px 8px; border: 1px solid #f0bf4f; background: #221c0c; padding: 9px 10px; }
+.instr .from { font-size: 11px; letter-spacing: 1px; color: #f0bf4f; text-transform: uppercase; }
+.instr .text { font-size: 17px; line-height: 1.3; margin: 4px 0 8px; }
+.instr .btn { width: 100%; padding: 9px; font-size: 15px; }
+.section { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #7d939a; padding: 6px 10px 4px; display: flex; }
+.log { flex: 1; min-height: 60px; overflow-y: auto; padding: 0 10px; }
+.m { padding: 3px 0; font-size: 14px; line-height: 1.3; border-bottom: 1px solid #172227; }
+.m b { font-family: Consolas, monospace; font-weight: 600; color: #7d939a; margin-right: 6px; font-size: 12px; }
+.m.mine { color: #7fd4f0; }
+.m.sys { color: #7d939a; font-style: italic; }
+.say { display: flex; padding: 6px 10px; }
+.say input { flex: 1; min-width: 0; background: #172227; border: 1px solid #24333a; color: #d6e2e5; padding: 6px 8px; font: inherit; font-size: 14px; }
+.say .btn { margin-left: 6px; }
+.atc { display: flex; flex-wrap: wrap; padding: 0 10px 10px; max-height: 120px; overflow-y: auto; }
+.atc button { background: #11191d; border: 1px solid #24333a; padding: 4px 7px; margin: 0 5px 5px 0; font-size: 12.5px; text-align: left; }
+.atc button.on { border-color: #7fd4f0; color: #7fd4f0; }
+.atc button span { font-family: Consolas, monospace; color: #7d939a; margin-left: 5px; }
+.empty { color: #7d939a; font-size: 13px; padding: 2px 0 8px; }
+.offline { padding: 20px 14px; color: #7d939a; line-height: 1.45; }
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand">AIR<span>WAVE</span></div><div class="cs" id="cs"></div>
+  <div class="grow"></div>
+  <div class="dot" id="dot"></div><div class="net" id="net">offline</div>
+  <button class="btn" id="conn" style="margin-left:8px">Connect</button>
+</div>
+<div id="lost" class="offline" style="display:none">Airwave Pilot is not running. Start it from the desktop shortcut, then this panel connects by itself.</div>
+<div id="main" style="display:flex;flex-direction:column;flex:1;min-height:0">
+  <div class="radio"><div class="freq" id="freq">122.800</div><div class="station" id="station">UNICOM</div><div class="grow"></div><div class="sq" id="sq"></div></div>
+  <div class="instr" id="instr" style="display:none">
+    <div class="from" id="instrFrom"></div>
+    <div class="text" id="instrText"></div>
+    <button class="btn primary" id="rb">Read back</button>
+  </div>
+  <div class="section">Radio</div>
+  <div class="log" id="log"><div class="empty">Messages on your frequency appear here.</div></div>
+  <div class="say"><input id="say" maxlength="240" placeholder="Message on frequency" autocomplete="off"><button class="btn" id="send">Send</button></div>
+  <div class="section">ATC online · tap to tune</div>
+  <div class="atc" id="atc"><div class="empty">No controllers online.</div></div>
+</div>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var last = 0, state = null, failures = 0, msgCount = 0;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function req(method, url, body, done) {
+    var x = new XMLHttpRequest();
+    x.open(method, url, true);
+    x.timeout = 4000;
+    x.onload = function () { var j = null; try { j = JSON.parse(x.responseText); } catch (e) {} done(x.status === 200 ? j : null); };
+    x.onerror = x.ontimeout = function () { done(null); };
+    if (body) x.setRequestHeader('content-type', 'application/json');
+    x.send(body ? JSON.stringify(body) : null);
+  }
+  function cmd(m) { req('POST', '/api/cmd', m, function (s) { if (s) { render(s); } }); }
+  function poll() {
+    req('GET', '/api/panel?since=' + last, null, function (s) {
+      if (!s) { failures++; if (failures > 2) { $('lost').style.display = 'block'; $('main').style.display = 'none'; } }
+      else { failures = 0; $('lost').style.display = 'none'; $('main').style.display = 'flex'; render(s); }
+      setTimeout(poll, 1000);
+    });
+  }
+  function render(s) {
+    state = s;
+    $('cs').textContent = s.callsign || '';
+    $('dot').className = 'dot ' + s.net;
+    $('net').textContent = s.net === 'online' ? 'online' : s.net === 'connecting' ? 'connecting…' : 'offline';
+    $('net').title = s.netText || '';
+    $('conn').textContent = s.net === 'offline' ? 'Connect' : 'Disconnect';
+    $('freq').textContent = s.freq;
+    $('station').textContent = s.station;
+    $('sq').textContent = s.squawk ? 'SQ ' + s.squawk : '';
+    var i = s.instr;
+    if (i && Date.now() - i.at < 15 * 60 * 1000) {
+      $('instr').style.display = 'block';
+      $('instrFrom').textContent = i.from;
+      $('instrText').textContent = i.text;
+      var rb = $('rb');
+      rb.className = 'btn ' + (i.readBack ? 'done' : 'primary');
+      rb.textContent = i.readBack ? 'Read back ✓' : (i.kind === 'contact' && i.freq ? 'Read back and switch to ' + i.freq : 'Read back');
+    } else $('instr').style.display = 'none';
+    if (s.msgs && s.msgs.length) {
+      var log = $('log');
+      if (!msgCount) log.innerHTML = '';
+      var atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
+      for (var k = 0; k < s.msgs.length; k++) {
+        var m = s.msgs[k]; if (m.id <= last) continue;
+        var d = document.createElement('div');
+        d.className = 'm' + (m.mine ? ' mine' : '') + (m.system ? ' sys' : '');
+        d.innerHTML = '<b>' + esc(m.from) + '</b>' + esc(m.text);
+        log.appendChild(d); msgCount++;
+        if (msgCount > 60) { log.removeChild(log.firstChild); msgCount--; }
+      }
+      if (atBottom) log.scrollTop = log.scrollHeight;
+    }
+    last = s.lastMsg || last;
+    var html = '';
+    for (var a = 0; a < s.atc.length; a++) {
+      var c = s.atc[a];
+      html += '<button data-f="' + esc(c.freq) + '" class="' + (c.freq === s.freq ? 'on' : '') + '">' + esc(c.id) + '<span>' + esc(c.freq) + '</span></button>';
+    }
+    $('atc').innerHTML = html || '<div class="empty">No controllers online.</div>';
+  }
+  $('atc').onclick = function (e) { var b = e.target; while (b && b.tagName !== 'BUTTON') b = b.parentNode; if (b && b.getAttribute('data-f')) cmd({ t: 'tune', freq: b.getAttribute('data-f') }); };
+  $('rb').onclick = function () { if (state && state.instr && !state.instr.readBack) cmd({ t: 'readback' }); };
+  $('conn').onclick = function () { cmd({ t: state && state.net !== 'offline' ? 'disconnect' : 'connect' }); };
+  function say() { var v = $('say').value.replace(/^\s+|\s+$/g, ''); if (!v) return; cmd({ t: 'send', text: v }); $('say').value = ''; }
+  $('send').onclick = say;
+  $('say').onkeydown = function (e) { if (e.keyCode === 13) say(); };
+  poll();
+})();
+</script>
+</body>
+</html>

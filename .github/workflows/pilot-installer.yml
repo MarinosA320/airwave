@@ -1,0 +1,101 @@
+# Builds AirwavePilotSetup.exe: Airwave Pilot with Node.js built in, the MSFS toolbar panel and the X-Plane plugin.
+# Test-installs it on a clean Windows machine, then publishes it as a GitHub release, so this link always has the newest:
+#   https://github.com/<owner>/<repo>/releases/latest/download/AirwavePilotSetup.exe
+name: Pilot installer
+
+on:
+  push:
+    branches: [main]
+    paths: ['pilot-client/**', 'sim-addons/**', 'installer/**', 'xplane-plugin/**', 'tools/msfs/**', 'package.json', 'package-lock.json', '.github/workflows/pilot-installer.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  plugin:
+    uses: ./.github/workflows/xplane-plugin.yml
+
+  installer:
+    needs: plugin
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: Airwave-xplane-win_x64
+          path: plugin
+
+      - name: Stage files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node tools/msfs/package.js
+          $s = 'installer/stage'
+          New-Item -ItemType Directory -Force "$s/node", "$s/app/sim-addons/msfs", "$s/app/sim-addons/xplane" | Out-Null
+          Copy-Item (Get-Command node).Source "$s/node/node.exe"
+          Copy-Item pilot-client "$s/app/pilot-client" -Recurse
+          Remove-Item "$s/app/pilot-client/config.json" -ErrorAction SilentlyContinue
+          Copy-Item sim-addons/msfs/airwave-pilot-panel "$s/app/sim-addons/msfs/airwave-pilot-panel" -Recurse
+          Copy-Item plugin/Airwave "$s/app/sim-addons/xplane/Airwave" -Recurse
+          Copy-Item package.json, package-lock.json "$s/app/"
+          Copy-Item installer/airwave.ico, 'installer/Airwave Pilot.cmd' "$s/"
+          Push-Location "$s/app"; npm ci --omit=dev --no-audit --no-fund; Pop-Location
+          $v = [regex]::Match((Get-Content pilot-client/pilot.js -Raw), "VERSION = '([0-9.]+)'").Groups[1].Value
+          "AIRWAVE_VERSION=$v" | Out-File $env:GITHUB_ENV -Append
+          Get-ChildItem -Recurse "$s/app/sim-addons" | Select-Object -ExpandProperty FullName
+
+      - name: Build setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
+          & $iscc "/DAppVersion=$env:AIRWAVE_VERSION" installer/airwave-pilot.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Test install, run and uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Pretend MSFS 2020 (Steam) and X-Plane 12 are installed, so the panel installer has somewhere to copy to.
+          $fake = "$env:RUNNER_TEMP\sims"
+          New-Item -ItemType Directory -Force "$fake\MSFS\Community", "$fake\X-Plane 12\Resources\plugins", "$env:APPDATA\Microsoft Flight Simulator" | Out-Null
+          "InstalledPackagesPath `"$fake\MSFS`"" | Out-File "$env:APPDATA\Microsoft Flight Simulator\UserCfg.opt" -Encoding ascii
+          "$fake\X-Plane 12" | Out-File "$env:LOCALAPPDATA\x-plane_install_12.txt" -Encoding ascii
+          $p = Start-Process installer/Output/AirwavePilotSetup.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=simpanels' -Wait -PassThru
+          if ($p.ExitCode) { throw "setup failed: $($p.ExitCode)" }
+          $app = "$env:LOCALAPPDATA\Programs\Airwave Pilot"
+          if (-not (Test-Path "$fake\MSFS\Community\airwave-pilot-panel\InGamePanels\airwave-pilot-panel.spb")) { throw 'MSFS panel was not installed' }
+          if (-not (Test-Path "$fake\X-Plane 12\Resources\plugins\Airwave\win_x64\Airwave.xpl")) { throw 'X-Plane plugin was not installed' }
+          $env:AIRWAVE_PILOT_CONFIG = "$env:RUNNER_TEMP\pilot-config.json"
+          $proc = Start-Process "$app\node\node.exe" -ArgumentList "`"$app\app\pilot-client\pilot.js`"" -PassThru
+          Start-Sleep 4
+          $panel = Invoke-RestMethod http://localhost:8090/api/panel
+          Write-Host "Panel API answered: net=$($panel.net) freq=$($panel.freq)"
+          $html = (Invoke-WebRequest http://localhost:8090/panel -UseBasicParsing).Content
+          if ($html -notmatch 'AIRWAVE') { throw 'panel page missing' }
+          Stop-Process $proc.Id
+          $p = Start-Process "$app\unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -Wait -PassThru
+          Start-Sleep 3
+          if (Test-Path "$fake\MSFS\Community\airwave-pilot-panel") { throw 'uninstall left the MSFS panel behind' }
+          Write-Host 'Install, run and uninstall all worked.'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AirwavePilotSetup
+          path: installer/Output/AirwavePilotSetup.exe
+
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "pilot-v$env:AIRWAVE_VERSION"
+          $notes = "Airwave Pilot $env:AIRWAVE_VERSION for Windows. Download AirwavePilotSetup.exe and run it. It installs Airwave Pilot, the MSFS 2020/2024 toolbar panel and the X-Plane 12 plugin."
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) { gh release upload $tag installer/Output/AirwavePilotSetup.exe --clobber }
+          else { gh release create $tag installer/Output/AirwavePilotSetup.exe --title "Airwave Pilot $env:AIRWAVE_VERSION" --notes $notes --latest }

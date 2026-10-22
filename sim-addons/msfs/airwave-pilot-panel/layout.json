@@ -1,0 +1,29 @@
+{
+  "content": [
+    {
+      "path": "InGamePanels/airwave-pilot-panel.spb",
+      "size": 676,
+      "date": 134371008000000000
+    },
+    {
+      "path": "html_ui/InGamePanels/AirwavePilot/AirwavePilot.css",
+      "size": 786,
+      "date": 134371008000000000
+    },
+    {
+      "path": "html_ui/InGamePanels/AirwavePilot/AirwavePilot.html",
+      "size": 1003,
+      "date": 134371008000000000
+    },
+    {
+      "path": "html_ui/InGamePanels/AirwavePilot/AirwavePilot.js",
+      "size": 2018,
+      "date": 134371008000000000
+    },
+    {
+      "path": "html_ui/Textures/Menu/toolbar/ICON_TOOLBAR_AIRWAVE.svg",
+      "size": 389,
+      "date": 134371008000000000
+    }
+  ]
+}
