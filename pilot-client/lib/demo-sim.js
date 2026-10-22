@@ -24,6 +24,7 @@ class DemoSim extends EventEmitter {
     if (instr.kind === 'hdg') this.s.tHdg = instr.value;
     if (instr.kind === 'alt') this.s.tAlt = instr.value;
     if (instr.kind === 'spd' && instr.value) this.s.tSpd = instr.value;
+    if (instr.kind === 'squawk') this.s.squawk = instr.value;
   }
   step(dt) {
     const s = this.s;
@@ -36,7 +37,7 @@ class DemoSim extends EventEmitter {
     const nm = s.gs * dt / 3600;
     s.lat += nm * Math.cos(toRad(s.hdg)) / 60;
     s.lon += nm * Math.sin(toRad(s.hdg)) / (60 * Math.cos(toRad(s.lat)));
-    this.emit('position', { lat: s.lat, lon: s.lon, alt: s.alt, hdg: s.hdg, gs: s.gs, vs: s.vs, pitch: 2, bank: turn / dt * 8, onGround: false, squawk: '4521' });
+    this.emit('position', { lat: s.lat, lon: s.lon, alt: s.alt, hdg: s.hdg, gs: s.gs, vs: s.vs, pitch: 2, bank: turn / dt * 8, onGround: false, squawk: s.squawk || '2000' });
   }
   add(a) { this.list.set(a.cs, a); }
   remove(a) { this.list.delete(a.cs); }

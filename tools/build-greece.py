@@ -217,15 +217,55 @@ if os.path.isdir(PROC_DIR):
         proc_count += len(good)
 for msg in problems: print('WARNING ' + msg, file=sys.stderr)
 
+# ------------------------------------------------------------------ coastline (Natural Earth 1:10m, public domain)
+def build_coast():
+    files = [os.path.join(SRC, f) for f in ('ne_10m_land.geojson', 'ne_10m_minor_islands.geojson')]
+    if not all(os.path.exists(f) for f in files):
+        print('Coastline skipped: put ne_10m_land.geojson and ne_10m_minor_islands.geojson from '
+              'https://github.com/nvkelso/natural-earth-vector/tree/master/geojson in data/src', file=sys.stderr)
+        return []
+    try:
+        from shapely.geometry import shape, box, Polygon, MultiPolygon
+    except ImportError:
+        print('Coastline skipped: pip install shapely', file=sys.stderr); return []
+    area = box(18.5, 33.3, 30.8, 42.3)   # lon/lat box around the FIR
+    rings = []
+    for f in files:
+        with open(f, encoding='utf-8') as fh:
+            for feat in json.load(fh)['features']:
+                g = shape(feat['geometry'])
+                if not g.intersects(area): continue
+                g = g.intersection(area).simplify(0.004, preserve_topology=True)   # ~0.25 NM
+                polys = [g] if isinstance(g, Polygon) else list(getattr(g, 'geoms', []))
+                for pg in polys:
+                    if not isinstance(pg, Polygon) or pg.is_empty or pg.area < 2e-6: continue
+                    rings.append([[round(y, 4), round(x, 4)] for x, y in pg.exterior.coords])
+    return rings
+COAST = build_coast()
+
+# ------------------------------------------------------------------ magnetic variation (World Magnetic Model)
+def build_magvar():
+    try:
+        from pygeomag import GeoMag
+    except ImportError:
+        print('Magnetic variation: pygeomag missing, using 5.0 E everywhere', file=sys.stderr)
+        return {'epoch': 2026.8, 'lat0': 34, 'lon0': 19, 'step': 1, 'rows': [[5.0] * 12 for _ in range(9)]}
+    import datetime
+    t = datetime.date.today(); epoch = round(t.year + (t.timetuple().tm_yday - 1) / 365.25, 2)
+    g = GeoMag()
+    rows = [[round(g.calculate(glat=lat, glon=lon, alt=0, time=epoch).d, 2) for lon in range(19, 31)] for lat in range(34, 43)]
+    return {'epoch': epoch, 'model': 'WMM', 'lat0': 34, 'lon0': 19, 'step': 1, 'rows': rows}
+MAGVAR = build_magvar()
+
 out = {
     'id': 'GREECE', 'name': 'Greece (Athens FIR)',
     'note': 'Airports, runways and navaids from OurAirports. FIR outline, sector split and area-control frequencies are approximate Airwave values. Not for real-world navigation.',
     'center': {'lat': 38.3, 'lon': 24.0}, 'transitionAlt': 6000, 'unicom': '122.800',
     'sectors': SECTORS, 'facilities': facilities, 'airports': airports,
-    'fixes': navaids, 'airways': [],
-    'source': 'OurAirports (public domain), https://ourairports.com/data/'
+    'fixes': navaids, 'airways': [], 'coast': COAST, 'magvar': MAGVAR,
+    'source': 'OurAirports (public domain), https://ourairports.com/data/; coastline: Natural Earth (public domain); magnetic variation: World Magnetic Model'
 }
 with open(OUT, 'w', encoding='utf-8') as f:
     json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
-print('Wrote %s: %d airports, %d runways, %d navaids, %d ATC positions, %d sectors, %d procedures, %d KB' % (
-    os.path.normpath(OUT), len(airports), sum(len(a['runways']) for a in airports), len(navaids), len(facilities), len(SECTORS), proc_count, os.path.getsize(OUT) // 1024))
+print('Wrote %s: %d airports, %d runways, %d navaids, %d ATC positions, %d sectors, %d procedures, %d coastline shapes, %d KB' % (
+    os.path.normpath(OUT), len(airports), sum(len(a['runways']) for a in airports), len(navaids), len(facilities), len(SECTORS), proc_count, len(COAST), os.path.getsize(OUT) // 1024))

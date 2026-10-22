@@ -1,7 +1,7 @@
 # Airwave
 
 A flight sim network: a server, a browser-based ATC radar scope, and Airwave Pilot, the client for MSFS 2024/2020 and X-Plane 12.
-Version 0.4.0. Default map: Greece (Athens FIR).
+Version 0.5.0. Default map: Greece (Athens FIR).
 
 ## What's here
 
@@ -131,11 +131,26 @@ Coverage is top-down: an aircraft talks to the most specific online controller c
 | `S220` / `S0` | Speed 220 kt / cancel speed restriction |
 | `D ATH` | Direct to a fix |
 | `STAR <name>` | Clear a STAR |
-| `APP` (or `ILS`) | Clear the approach for the active runway. From a heading, the aircraft intercepts the final course. |
+| `APP` (or `ILS`) | Clear the best approach for the active runway (pick a specific one in the panel). From a heading, the aircraft intercepts the final course. |
 | `RES` | Resume own navigation |
 | `HO LGAV_APP` | Hand off to another controller |
 
+| `SQ` / `SQ4521` | Assign a free squawk / a specific squawk |
+| `SID KEA1A` | Clear a SID (departures) |
+| `TAXI HP03R VIA A B2` | Taxi to a holding point (or `TAXI 204 VIA A` to a stand) |
+
 Commands chain: `AEE123 A L270 FL80 S220`.
+
+**Measuring and QDM/QDR:** click the ↔ button (or hold Shift) and drag between two points. Line ends snap to aircraft, navaids and airports.
+A line between an aircraft and a navaid shows QDM, QDR, distance and time to go, and follows the aircraft. Bearings are magnetic
+(World Magnetic Model, about 5°E over Greece). Right-click a line's label to remove it, or ✕ to clear all. The selected aircraft panel
+also shows live QDM/QDR to any nearby navaid.
+
+**Map layers:** coastline (Natural Earth) and terrain. Terrain comes from public elevation tiles that your browser downloads,
+so it works on the server and GitHub Pages scope but not in offline copies.
+
+**Airport layouts on GitHub:** in the repository's Actions tab, run **Airport layouts** to download taxiways, stands and gates for every
+airport (or a list of ICAO codes). It commits them to `data/layouts`, and Render redeploys with them. It also refreshes monthly.
 
 ## Tests
 

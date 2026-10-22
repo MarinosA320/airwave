@@ -21,6 +21,9 @@
   --amber: #f0bf4f;       /* selection and handoffs */
   --alert: #ff6a5a;       /* conflicts and errors */
   --ok: #72d39d;
+  --land: #121d1f;       /* land fill */
+  --coast: #3c5a5a;      /* coastline */
+  --rbl: #e8c25a;        /* measuring lines */
   --f-ui: 'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif;
   --f-data: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
   color-scheme: dark;
@@ -45,6 +48,15 @@ button, input, select { font: inherit; color: inherit; }
 .zoom { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); right: 12px; display: flex; flex-direction: column; gap: 4px; }
 .zoom button { width: 34px; height: 34px; background: var(--panel-2); border: 1px solid var(--line); font-family: var(--f-data); cursor: pointer; }
 .zoom button:hover { border-color: var(--map); }
+.zoom button[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
+.zoom .sep { height: 6px; }
+.chip.rbl { color: var(--rbl); border-color: var(--rbl); }
+.ctl .wide2 { display: flex; gap: 4px; min-width: 0; }
+.ctl .wide2 input { flex: 1; min-width: 0; }
+.qdm { font-family: var(--f-data); font-size: 12.5px; color: var(--rbl); }
+details.grp { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 6px; }
+details.grp > summary { cursor: pointer; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 2px 0 6px; }
+.facts .warn { color: var(--alert); }
 .cmd { position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); padding: 0 10px; }
 .cmd label { font-family: var(--f-data); color: var(--amber); font-size: 13px; }
 .cmd input { flex: 1; min-width: 0; background: transparent; border: 0; padding: 10px 0; font-family: var(--f-data); font-size: 14px; letter-spacing: .03em; text-transform: uppercase; outline: none; }
@@ -143,11 +155,16 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       <div class="chip">TRAFFIC <b id="hudCount">0</b></div>
       <div class="chip">RANGE <b id="hudRange">--</b> NM</div>
       <div class="chip alert" id="hudStca" hidden>STCA <b id="hudStcaN">0</b></div>
+      <div class="chip rbl" id="hudTool" hidden>MEASURE: drag between two points</div>
+      <div class="chip" id="hudTerrain" hidden></div>
     </div>
     <div class="zoom">
       <button id="zin" aria-label="Zoom in">+</button>
       <button id="zout" aria-label="Zoom out">&minus;</button>
       <button id="zhome" aria-label="Reset view" title="Reset view">&#9678;</button>
+      <div class="sep"></div>
+      <button id="tMeasure" aria-pressed="false" aria-label="Measure distance and bearing" title="Measure: drag between two points. Ends snap to aircraft and navaids, giving QDM/QDR. Shift-drag works too.">&#8596;</button>
+      <button id="tClear" aria-label="Clear measuring lines" title="Clear measuring lines (or right-click a line's label)">&#10005;</button>
     </div>
     <form class="cmd" id="cmdForm" autocomplete="off">
       <label for="cmd">CMD</label>
@@ -194,6 +211,8 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
           <label><input type="checkbox" id="lySid"> SIDs</label>
           <label><input type="checkbox" id="lyApp" checked> Approaches</label>
           <label><input type="checkbox" id="lyGround" checked> Airport layouts</label>
+          <label><input type="checkbox" id="lyCoast" checked> Coastline</label>
+          <label><input type="checkbox" id="lyTerrain"> Terrain</label>
         </div>
         <p class="hint" id="mapNote"></p>
       </section>
@@ -211,6 +230,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       <section class="radio">
         <h2><span>Radio</span><span id="radioFreq"></span></h2>
         <div class="log" id="log" aria-live="polite"></div>
+        <datalist id="fixList"></datalist>
         <form class="tx" id="txForm" autocomplete="off">
           <input id="tx" placeholder="Transmit on frequency" maxlength="240">
           <button class="btn" type="submit">Send</button>
@@ -229,14 +249,14 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
   const $ = id => document.getElementById(id);
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const C = {};
-  ['--bg', '--map', '--map-dim', '--fix', '--text', '--muted', '--mine', '--other', '--amber', '--alert', '--line', '--ok'].forEach(k => C[k.slice(2)] = css(k));
+  ['--bg', '--map', '--map-dim', '--fix', '--text', '--muted', '--mine', '--other', '--amber', '--alert', '--line', '--ok', '--land', '--coast', '--rbl'].forEach(k => C[k.slice(2)] = css(k));
   const LAYER_COLORS = { STAR: '#6fae8c', SID: '#c79a4a', APP: '#7fb7d4' };
 
   // ------------------------------------------------------------ state
   const st = {
     mode: 'demo', conn: null, me: null, freq: null, facility: null, map: null,
     traffic: [], atc: [], hist: new Map(), selected: null,
-    view: { lat: 0, lon: 0, scale: 0 }, conflicts: [], inConflict: new Set(),
+    view: { lat: 0, lon: 0, scale: 0 }, conflicts: [], inConflict: new Set(), rbls: [], rblDraft: null, measure: false,
     layouts: new Map(), layoutBase: null
   };
   const store = {
@@ -272,7 +292,8 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     $('mapNote').textContent = map.note || '';
   }
   function setMap(map) {
-    st.map = map; st.layouts.clear();
+    st.map = map; st.layouts.clear(); st.rbls = [];
+    $('fixList').innerHTML = [...map.fixIndex.keys()].sort().map(id => '<option value="' + esc(id) + '"></option>').join('');
     fillPositions(map, store.get('facility', ''));
     homeView();
   }
@@ -427,7 +448,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
 
   // ------------------------------------------------------------ commands
   const fl = ft => String(Math.round(ft / 100)).padStart(3, '0');
-  const RESERVED = /^(A|AS|FL\d+|[HLRS]\d+|D|ILS|APP|RES|REL|HO|STAR)$/;
+  const RESERVED = /^(A|AS|FL\d+|[HLRS]\d+|D|ILS|APP|RES|REL|HO|STAR|SID|SQ\d*|TAXI)$/;
   function resolveCs(tok) {
     const exact = st.traffic.find(a => a.cs === tok); if (exact) return exact.cs;
     const m = st.traffic.filter(a => a.cs.startsWith(tok) || a.cs.endsWith(tok));
@@ -456,12 +477,23 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       else if (t === 'ILS' || t === 'APP') send({ t: 'instr', to: cs, kind: 'ils' });
       else if (t === 'STAR') { const name = toks[++i]; if (!name) return sys('Name the STAR after STAR.', 'err'); send({ t: 'instr', to: cs, kind: 'star', value: name }); }
       else if (t === 'RES') send({ t: 'instr', to: cs, kind: 'resume' });
-      else return sys('Unknown command ' + t + '. Try L270, FL120, A60, S220, D ATH, APP, STAR name, RES, A, REL or HO.', 'err');
+      else if ((m = t.match(/^SQ(\d{4})?$/))) send({ t: 'instr', to: cs, kind: 'squawk', value: m[1] || 'AUTO' });
+      else if (t === 'SID') { const name = toks[++i]; if (!name) return sys('Name the SID after SID.', 'err'); send({ t: 'instr', to: cs, kind: 'sid', value: name }); }
+      else if (t === 'TAXI') {
+        // TAXI HP03R VIA A B2   or   TAXI 204 VIA A
+        const rest = toks.slice(i + 1); i = toks.length;
+        const v = rest.indexOf('VIA');
+        let to = (v < 0 ? rest : rest.slice(0, v)).join(' ');
+        if (/^HP\d/.test(to)) to = 'HP ' + to.slice(2);
+        else if (/^\d{1,3}[A-Z]?$/.test(to)) to = 'STAND ' + to;
+        send({ t: 'instr', to: cs, kind: 'taxi', value: { to, via: v < 0 ? [] : rest.slice(v + 1) } });
+      }
+      else return sys('Unknown command ' + t + '. Try L270, FL120, A60, S220, D ATH, SQ, SID name, STAR name, APP, TAXI HP03R VIA A B, RES, A, REL or HO.', 'err');
     }
   }
   $('cmdForm').addEventListener('submit', e => { e.preventDefault(); if (!st.conn) return sys('Connect first.', 'err'); runCommand($('cmd').value); $('cmd').value = ''; });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { st.selected = null; renderSide(); return; }
+    if (e.key === 'Escape') { if (st.rblDraft || st.measure) { st.rblDraft = null; setMeasure(false); return; } st.selected = null; renderSide(); return; }
     const tag = document.activeElement && document.activeElement.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key.length === 1 && /[a-z0-9]/i.test(e.key)) $('cmd').focus();
@@ -489,42 +521,83 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
   $('strips').addEventListener('click', e => { const b = e.target.closest('.strip'); if (b) { st.selected = b.dataset.cs; renderSide(); } });
 
   let selRenderedFor = null;
+  // Airports this aircraft is leaving and going to, if they are on the map.
+  function airportsOf(a) {
+    const arr = st.map.airports.find(x => x.icao === (a.fp && a.fp.arr));
+    const dep = st.map.airports.find(x => x.icao === (a.fp && a.fp.dep));
+    const nearDep = dep && (!arr || G.distNm(a, dep) < G.distNm(a, arr));
+    return { dep, arr, departing: !!nearDep, arriving: !!arr && !nearDep };
+  }
+  function qdmText(a, fixId) {
+    const f = st.map.fixIndex.get(fixId); if (!f) return '';
+    const qdm = A.magBearing(st.map, a, f), d = G.distNm(a, f);
+    const qdr = (qdm + 180) % 360;
+    return 'QDM ' + deg(qdm) + '  QDR ' + deg(qdr) + '  ' + d.toFixed(1) + ' NM';
+  }
+  const deg = v => String(Math.round(v) % 360 || 360).padStart(3, '0') + '°';
+  function factsHtml(a) {
+    const sqWarn = a.cleared && a.cleared.sq && a.sq !== a.cleared.sq;
+    return '<div><span>Level</span>' + fl(a.alt) + '</div><div><span>Cleared</span>' + (a.cleared && a.cleared.alt ? fl(a.cleared.alt) : '—') + '</div>' +
+      '<div><span>Speed</span>' + a.gs + '</div><div><span>Squawk</span><span class="' + (sqWarn ? 'warn' : '') + '">' + esc(a.sq || '—') + (sqWarn ? ' ≠ ' + esc(a.cleared.sq) : '') + '</span></div>' +
+      '<div class="route"><span>Route</span>' + esc((a.fp && a.fp.dep) || '?') + ' ' + esc((a.fp && a.fp.route) || '') + ' ' + esc((a.fp && a.fp.arr) || '?') + '</div>' +
+      (a.cleared && (a.cleared.sid || a.cleared.star || a.cleared.app || a.cleared.taxi) ? '<div class="route"><span>Cleared</span>' +
+        esc([a.cleared.sid && 'SID ' + a.cleared.sid, a.cleared.star && 'STAR ' + a.cleared.star, a.cleared.app && 'APP ' + a.cleared.app, a.cleared.taxi && 'Taxi ' + a.cleared.taxi].filter(Boolean).join(' · ')) + '</div>' : '');
+  }
   function renderSelected() {
     const a = st.traffic.find(x => x.cs === st.selected);
     const box = $('selected');
     if (!a) { if (selRenderedFor !== '') { box.innerHTML = '<p class="sel-empty">Click an aircraft on the scope or in the list.</p>'; selRenderedFor = ''; } return; }
     const mine = a.owner === st.me;
     const ownerText = a.handoff === st.me ? 'Handoff to you from ' + a.owner : a.owner ? (mine ? 'You control this aircraft' : 'Controlled by ' + a.owner) : 'Not controlled';
-    const facts = '<div><span>Level</span>' + fl(a.alt) + '</div><div><span>Cleared</span>' + (a.cleared && a.cleared.alt ? fl(a.cleared.alt) : '—') + '</div>' +
-      '<div><span>Speed</span>' + a.gs + '</div><div><span>Squawk</span>' + esc(a.sq || '—') + '</div>' +
-      '<div class="route"><span>Route</span>' + esc((a.fp && a.fp.dep) || '?') + ' ' + esc((a.fp && a.fp.route) || '') + ' ' + esc((a.fp && a.fp.arr) || '?') + '</div>';
     if (selRenderedFor === a.cs) {
-      box.querySelector('.facts').innerHTML = facts;
+      box.querySelector('.facts').innerHTML = factsHtml(a);
       box.querySelector('.sel-owner').textContent = ownerText;
       box.querySelector('[data-act=own]').outerHTML = ownButton(a);
+      const q = $('qdmOut'); if (q) q.textContent = qdmText(a, $('iQdm').value);
       return;
     }
     selRenderedFor = a.cs;
     const others = st.atc.filter(c => c.cs !== st.me);
-    const arrAp0 = st.map.airports.find(x => x.icao === (a.fp && a.fp.arr));
-    const depAp = st.map.airports.find(x => x.icao === (a.fp && a.fp.dep));
-    const arrAp = arrAp0 && (!depAp || G.distNm(a, arrAp0) < G.distNm(a, depAp)) ? arrAp0 : null;
-    const stars = arrAp ? A.proceduresFor(arrAp, 'STAR', A.activeRunway(arrAp).id) : [];
-    const near = st.map.fixes.slice().sort((x, y) => G.distNm(a, x) - G.distNm(a, y)).slice(0, 12).sort((x, y) => x.id.localeCompare(y.id));
-    const app = arrAp ? A.bestApproach(arrAp, A.activeRunway(arrAp).id) : null;
+    const ap = airportsOf(a);
+    const rwyOf = x => A.activeRunway(x).id;
+    const stars = ap.arriving ? A.proceduresFor(ap.arr, 'STAR', rwyOf(ap.arr)) : [];
+    const sids = ap.departing ? A.proceduresFor(ap.dep, 'SID', rwyOf(ap.dep)) : [];
+    const apps = ap.arriving ? A.proceduresFor(ap.arr, 'APP') : [];
+    const best = ap.arriving ? A.bestApproach(ap.arr, rwyOf(ap.arr)) : null;
+    const near = st.map.fixes.slice().sort((x, y) => G.distNm(a, x) - G.distNm(a, y)).slice(0, 15);
+    const groundAp = ap.departing ? ap.dep : ap.arriving ? ap.arr : null;
+    const opt = (v, label, selAttr) => '<option value="' + esc(v) + '"' + (selAttr ? ' selected' : '') + '>' + esc(label || v) + '</option>';
     box.innerHTML =
       '<div class="sel-head"><span class="sel-cs">' + esc(a.cs) + '</span><span class="sel-owner">' + esc(ownerText) + '</span></div>' +
-      '<div class="facts">' + facts + '</div>' +
+      '<div class="facts">' + factsHtml(a) + '</div>' +
       '<div class="ctl"><span>Heading</span><input id="iHdg" inputmode="numeric" maxlength="3" value="' + String(a.hdg).padStart(3, '0') + '"><div class="btns"><button class="btn" data-act="L">Left</button><button class="btn" data-act="R">Right</button></div></div>' +
       '<div class="ctl"><span>Level</span><input id="iAlt" maxlength="6" placeholder="FL120 or 6000" value="' + (a.cleared && a.cleared.alt ? (a.cleared.alt > (st.map.transitionAlt || 6000) ? 'FL' + fl(a.cleared.alt) : a.cleared.alt) : '') + '"><button class="btn" data-act="alt">Set</button></div>' +
       '<div class="ctl"><span>Speed</span><input id="iSpd" inputmode="numeric" maxlength="3" placeholder="kt" value="' + ((a.cleared && a.cleared.spd) || '') + '"><button class="btn" data-act="spd">Set</button></div>' +
-      '<div class="ctl"><span>Direct</span><select id="iFix">' + near.map(f => '<option>' + esc(f.id) + '</option>').join('') + '</select><button class="btn" data-act="dct">Go</button></div>' +
-      (stars.length ? '<div class="ctl"><span>STAR</span><select id="iStar">' + stars.map(p => '<option>' + esc(p.name) + '</option>').join('') + '</select><button class="btn" data-act="star">Clear</button></div>' : '') +
+      '<div class="ctl"><span>Direct</span><input id="iFix" list="fixList" maxlength="7" placeholder="any fix, e.g. ' + esc(near[0] ? near[0].id : 'ATH') + '" spellcheck="false"><button class="btn" data-act="dct">Go</button></div>' +
+      '<div class="ctl"><span>Squawk</span><div class="wide2"><input id="iSq" inputmode="numeric" maxlength="4" placeholder="4521" value="' + esc((a.cleared && a.cleared.sq) || '') + '"><button class="btn" data-act="sqAuto" title="Assign a free code">Auto</button></div><button class="btn" data-act="sq">Set</button></div>' +
+      (sids.length ? '<div class="ctl"><span>SID</span><select id="iSid">' + sids.map(p => opt(p.name, null, a.cleared && a.cleared.sid === p.name)).join('') + '</select><button class="btn" data-act="sid">Clear</button></div>' : '') +
+      (stars.length ? '<div class="ctl"><span>STAR</span><select id="iStar">' + stars.map(p => opt(p.name, null, a.cleared && a.cleared.star === p.name)).join('') + '</select><button class="btn" data-act="star">Clear</button></div>' : '') +
+      (ap.arriving ? '<div class="ctl"><span>Approach</span><select id="iApp">' + opt('', (best ? best.name : 'Runway ' + rwyOf(ap.arr)) + ' (best)') + apps.filter(p => p !== best).map(p => opt(p.name)).join('') + '</select><button class="btn" data-act="app">Clear</button></div>' : '') +
+      '<div class="ctl"><span>QDM to</span><select id="iQdm">' + near.map(f => opt(f.id, f.id + ' ' + (f.kind || '').toUpperCase())).join('') + '</select><button class="btn" data-act="qdmDraw" title="Draw a measuring line from the aircraft to this navaid">Draw</button></div>' +
+      '<div class="qdm" id="qdmOut">' + esc(near[0] ? qdmText(a, near[0].id) : '') + '</div>' +
+      (groundAp ? '<details class="grp"' + (a.alt - groundAp.elev < 800 ? ' open' : '') + '><summary>Ground · ' + esc(groundAp.icao) + '</summary>' +
+        '<div class="ctl"><span>Taxi to</span><input id="iTaxiTo" list="taxiToList" placeholder="HP ' + esc(rwyOf(groundAp)) + ' or stand 204" spellcheck="false"><span></span></div>' +
+        '<div class="ctl"><span>Via</span><input id="iTaxiVia" list="taxiwayList" placeholder="A B2 C" spellcheck="false"><button class="btn" data-act="taxi">Taxi</button></div>' +
+        '<datalist id="taxiToList">' + groundOptions(groundAp).to.map(v => opt(v)).join('') + '</datalist>' +
+        '<datalist id="taxiwayList">' + groundOptions(groundAp).via.map(v => opt(v)).join('') + '</datalist>' +
+        '</details>' : '') +
       '<div class="actions">' + ownButton(a) +
-      (arrAp ? '<button class="btn" data-act="ils">Clear ' + esc(app ? app.approach : 'approach') + ' ' + esc(A.activeRunway(arrAp).id) + '</button>' : '') +
       '<button class="btn" data-act="res">Own nav</button>' +
       (others.length ? '<select class="btn" id="iHo" aria-label="Hand off to"><option value="">Hand off to…</option>' + others.map(c => '<option>' + esc(c.cs) + '</option>').join('') + '</select>' : '') +
       '</div>';
+  }
+  // Taxi destinations and taxiway names from the airport layout, when one is loaded.
+  function groundOptions(ap) {
+    const to = ap.runways.flatMap(r => r.name.split('/')).map(r => 'HP ' + r);
+    const L = st.layouts.get(ap.icao);
+    if (L) L.stands.forEach(x => { if (x.ref) to.push('STAND ' + x.ref); });
+    const via = L ? [...new Set(L.taxiways.map(t => t.ref).filter(r => r && /^[A-Z0-9]{1,4}$/i.test(r)).map(r => r.toUpperCase()))].sort() : [];
+    return { to: [...new Set(to)].slice(0, 400), via };
   }
   function ownButton(a) {
     if (a.owner === st.me) return '<button class="btn" data-act="own" data-v="rel">Release</button>';
@@ -534,20 +607,32 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
   $('selected').addEventListener('click', e => {
     const b = e.target.closest('[data-act]'); if (!b || !st.selected) return;
     const cs = st.selected, act = b.dataset.act;
+    const val = id => ($(id) ? $(id).value.trim().toUpperCase() : '');
     if (act === 'L' || act === 'R') { const v = Number($('iHdg').value); if (!(v >= 1 && v <= 360)) return sys('Heading must be 1 to 360.', 'err'); send({ t: 'instr', to: cs, kind: 'hdg', value: v, dir: act }); }
-    if (act === 'alt') { const raw = $('iAlt').value.trim().toUpperCase(); const v = raw.startsWith('FL') ? Number(raw.slice(2)) * 100 : Number(raw); if (!v) return sys('Enter a level like FL120 or an altitude like 5000.', 'err'); send({ t: 'instr', to: cs, kind: 'alt', value: v }); }
+    if (act === 'alt') { const raw = val('iAlt'); const v = raw.startsWith('FL') ? Number(raw.slice(2)) * 100 : Number(raw); if (!v) return sys('Enter a level like FL120 or an altitude like 5000.', 'err'); send({ t: 'instr', to: cs, kind: 'alt', value: v }); }
     if (act === 'spd') send({ t: 'instr', to: cs, kind: 'spd', value: Number($('iSpd').value) || 0 });
-    if (act === 'dct') send({ t: 'instr', to: cs, kind: 'direct', value: $('iFix').value });
+    if (act === 'dct') { const f = val('iFix'); if (!f) return sys('Type a fix or navaid, for example ATH.', 'err'); send({ t: 'instr', to: cs, kind: 'direct', value: f }); }
+    if (act === 'sq') { const v = val('iSq'); send({ t: 'instr', to: cs, kind: 'squawk', value: v || 'AUTO' }); }
+    if (act === 'sqAuto') send({ t: 'instr', to: cs, kind: 'squawk', value: 'AUTO' });
+    if (act === 'sid') send({ t: 'instr', to: cs, kind: 'sid', value: $('iSid').value });
     if (act === 'star') send({ t: 'instr', to: cs, kind: 'star', value: $('iStar').value });
-    if (act === 'ils') send({ t: 'instr', to: cs, kind: 'ils' });
+    if (act === 'app') send({ t: 'instr', to: cs, kind: 'ils', value: $('iApp').value || undefined });
+    if (act === 'taxi') {
+      const to = val('iTaxiTo'); if (!to) return sys('Say where to taxi, for example HP 03R or STAND 204.', 'err');
+      send({ t: 'instr', to: cs, kind: 'taxi', value: { to, via: val('iTaxiVia').split(/[\s,]+/).filter(Boolean) } });
+    }
+    if (act === 'qdmDraw') addRbl({ kind: 'ac', cs }, { kind: 'fix', id: $('iQdm').value });
     if (act === 'res') send({ t: 'instr', to: cs, kind: 'resume' });
     if (act === 'own') send({ t: b.dataset.v === 'rel' ? 'release' : 'assume', to: cs });
   });
-  $('selected').addEventListener('change', e => { if (e.target.id === 'iHo' && e.target.value) { send({ t: 'handoff', to: st.selected, next: e.target.value }); e.target.value = ''; } });
+  $('selected').addEventListener('change', e => {
+    if (e.target.id === 'iHo' && e.target.value) { send({ t: 'handoff', to: st.selected, next: e.target.value }); e.target.value = ''; }
+    if (e.target.id === 'iQdm') { const a = st.traffic.find(x => x.cs === st.selected); if (a) $('qdmOut').textContent = qdmText(a, e.target.value); }
+  });
   $('selected').addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
-    const map = { iAlt: 'alt', iSpd: 'spd' }; const act = map[e.target.id];
-    if (act) $('selected').querySelector('[data-act=' + act + ']').click();
+    const map = { iAlt: 'alt', iSpd: 'spd', iFix: 'dct', iSq: 'sq', iTaxiVia: 'taxi', iTaxiTo: 'taxi' }; const act = map[e.target.id];
+    if (act) { e.preventDefault(); $('selected').querySelector('[data-act=' + act + ']').click(); }
     if (e.target.id === 'iHdg') { const a = st.traffic.find(x => x.cs === st.selected); const v = Number(e.target.value); if (a && v) send({ t: 'instr', to: a.cs, kind: 'hdg', value: v, dir: G.angleDiff(a.hdg, v) < 0 ? 'L' : 'R' }); }
   });
 
@@ -592,6 +677,15 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     for (const t of L.terminals) { polyPath(t.poly); ctx.closePath(); ctx.fillStyle = 'rgba(160,180,190,0.22)'; ctx.fill(); ctx.strokeStyle = C.map; ctx.lineWidth = 1; ctx.stroke(); }
     ctx.strokeStyle = 'rgba(214,226,229,0.28)'; ctx.lineCap = 'round';
     for (const t of L.taxiways) { polyPath(t.line); ctx.lineWidth = Math.max(1, Math.min(10, sc * 0.012)); ctx.stroke(); }
+    // Highlight the taxi route cleared for the selected aircraft
+    const selA = st.traffic.find(x => x.cs === st.selected);
+    const via = selA && selA.cleared && selA.cleared.taxi && /via (.+)$/.exec(selA.cleared.taxi);
+    if (via) {
+      const names = new Set(via[1].split(/\s+/));
+      ctx.strokeStyle = C.amber; ctx.globalAlpha = 0.8;
+      for (const t of L.taxiways) if (t.ref && names.has(t.ref.toUpperCase())) { polyPath(t.line); ctx.lineWidth = Math.max(2, Math.min(12, sc * 0.014)); ctx.stroke(); }
+      ctx.globalAlpha = 1; ctx.strokeStyle = 'rgba(214,226,229,0.28)';
+    }
     ctx.lineWidth = Math.max(2, sc * 0.025); ctx.strokeStyle = 'rgba(214,226,229,0.75)';
     for (const r of L.runways) { polyPath(r.line); ctx.stroke(); }
     ctx.lineCap = 'butt';
@@ -644,6 +738,15 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     const sc = st.view.scale;
     $('hudRange').textContent = Math.round(Math.min(W, H) / sc / 2);
 
+    if ($('lyTerrain').checked) drawTerrain();
+    else $('hudTerrain').hidden = true;
+    // Coastline
+    if ($('lyCoast').checked && m.coast) {
+      ctx.beginPath();
+      for (const ring of m.coast) ring.forEach((q, i) => { const [x, y] = P({ lat: q[0], lon: q[1] }); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      if (!$('lyTerrain').checked) { ctx.fillStyle = C.land; ctx.fill('evenodd'); }
+      ctx.strokeStyle = C.coast; ctx.lineWidth = 1; ctx.stroke();
+    }
     // Sectors
     const mineSectors = st.facility && st.facility.covers ? st.facility.covers : [];
     for (const z of m.sectors) {
@@ -724,6 +827,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       const trend = a.vs > 300 ? '↑' : a.vs < -300 ? '↓' : ' ';
       const lines = [a.cs + (ho && blink ? ' HO' : ''), fl(a.alt) + trend + (a.cleared && a.cleared.alt ? fl(a.cleared.alt) : '   ') + ' ' + String(Math.round(a.gs / 10)).padStart(2, '0')];
       if (mine || sel) lines.push(a.type + ' ' + ((a.fp && a.fp.arr) || '') + (a.proc ? ' ' + a.proc : ''));
+      if (a.cleared && a.cleared.sq && a.sq !== a.cleared.sq) lines.push('SQ ' + a.sq + '≠' + a.cleared.sq);
       if (conf) lines.unshift('STCA');
       ctx.font = fontData(12, 500); const lh = 14;
       const wpx = Math.max(...lines.map(s => ctx.measureText(s).width));
@@ -738,12 +842,13 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx < x ? bx + wpx + 2 : bx - 3, by + 10); ctx.stroke();
       if (sel) { ctx.strokeStyle = C.amber; ctx.lineWidth = 1; ctx.strokeRect(bx - 4, by - 2, wpx + 8, bh + 4); }
       ctx.textAlign = 'left';
-      lines.forEach((s, i) => { ctx.fillStyle = s === 'STCA' ? C.alert : i === 0 && sel ? C.amber : col; ctx.fillText(s, bx, by + 10 + i * lh); });
+      lines.forEach((s, i) => { ctx.fillStyle = s === 'STCA' || s.startsWith('SQ ') ? C.alert : i === 0 && sel ? C.amber : col; ctx.fillText(s, bx, by + 10 + i * lh); });
       a._hit = { x, y, bx: bx - 4, by: by - 2, bw: wpx + 8, bh: bh + 4 };
     }
     ctx.strokeStyle = C.alert; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
     for (const [a, b] of st.conflicts) { const ta = st.traffic.find(t => t.cs === a), tb = st.traffic.find(t => t.cs === b); if (!ta || !tb) continue; const [x1, y1] = P(ta), [x2, y2] = P(tb); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
     ctx.setLineDash([]);
+    drawRbls();
     // Scale bar
     const nice = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200];
     const nm = nice.find(n => n * sc >= 70) || 200; const bl = nm * sc, sx = 16, sy = H - 72;
@@ -752,16 +857,136 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     ctx.fillText(W < 640 ? 'Approximate map data' : 'Map data is approximate. Not for real-world navigation.', sx, sy - 14);
   }
 
+  // ------------------------------------------------------------ terrain (Mapzen/Tilezen elevation tiles on AWS, loaded by your browser)
+  // Shaded in height bands, like a minimum-altitude map: sea is left dark.
+  const TERRAIN_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+  const BANDS = [[1000, [30, 52, 40]], [2000, [40, 64, 44]], [3000, [56, 74, 46]], [4000, [74, 80, 50]], [5000, [88, 80, 56]], [6500, [100, 80, 64]], [1e9, [112, 86, 76]]];
+  const terrain = { tiles: new Map(), ok: 0, failed: 0 };
+  function tileFor(z, x, y) {
+    const key = z + '/' + x + '/' + y;
+    let t = terrain.tiles.get(key);
+    if (t) return t;
+    t = { state: 'loading' }; terrain.tiles.set(key, t);
+    if (terrain.tiles.size > 400) terrain.tiles.delete(terrain.tiles.keys().next().value);
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas'); c.width = c.height = 256;
+        const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, 256, 256), px = d.data;
+        for (let i = 0; i < px.length; i += 4) {
+          const ft = ((px[i] * 256 + px[i + 1] + px[i + 2] / 256) - 32768) * 3.28084;
+          if (ft < 30) { px[i + 3] = 0; continue; }
+          const band = BANDS.find(b => ft < b[0])[1];
+          px[i] = band[0]; px[i + 1] = band[1]; px[i + 2] = band[2]; px[i + 3] = 255;
+        }
+        g.putImageData(d, 0, 0);
+        t.canvas = c; t.state = 'ok'; terrain.ok++;
+      } catch (e) { t.state = 'failed'; terrain.failed++; }
+    };
+    img.onerror = () => { t.state = 'failed'; terrain.failed++; };
+    img.src = TERRAIN_URL.replace('{z}', z).replace('{x}', x).replace('{y}', y);
+    return t;
+  }
+  const lon2x = (lon, n) => (lon + 180) / 360 * n;
+  const lat2y = (lat, n) => (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n;
+  const x2lon = (x, n) => x / n * 360 - 180;
+  const y2lat = (y, n) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
+  function drawTerrain() {
+    const sc = st.view.scale;
+    const z = Math.max(5, Math.min(12, Math.round(Math.log2(360 * 60 * Math.cos(st.view.lat * Math.PI / 180) * sc / 300))));
+    const n = Math.pow(2, z);
+    const nw = unP(0, 0), se = unP(W, H);
+    const x0 = Math.floor(lon2x(nw.lon, n)), x1 = Math.floor(lon2x(se.lon, n));
+    const y0 = Math.floor(lat2y(nw.lat, n)), y1 = Math.floor(lat2y(se.lat, n));
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 60) return;
+    ctx.save(); ctx.imageSmoothingEnabled = true; ctx.globalAlpha = 0.85;
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+      const t = tileFor(z, ((x % n) + n) % n, y);
+      if (t.state !== 'ok') continue;
+      const [ax, ay] = P({ lat: y2lat(y, n), lon: x2lon(x, n) }), [bx, by] = P({ lat: y2lat(y + 1, n), lon: x2lon(x + 1, n) });
+      ctx.drawImage(t.canvas, ax, ay, bx - ax + 0.5, by - ay + 0.5);
+    }
+    ctx.restore();
+    const hud = $('hudTerrain');
+    if (terrain.failed && !terrain.ok) { hud.hidden = false; hud.textContent = 'Terrain unavailable here'; }
+    else { hud.hidden = false; hud.innerHTML = 'TERRAIN <b>' + BANDS.slice(0, -1).map(b => b[0] / 1000 + 'k').join(' ') + ' ft</b>'; }
+  }
+
+  // ------------------------------------------------------------ measuring lines (range and bearing, QDM/QDR)
+  // Each end is an aircraft, a navaid/fix, an airport or a point. Lines follow aircraft as they move.
+  function snapAt(x, y) {
+    let best = null, bd = 14;
+    for (const a of st.traffic) { if (!a._hit) continue; const d = Math.hypot(x - a._hit.x, y - a._hit.y); if (d < bd) { bd = d; best = { kind: 'ac', cs: a.cs }; } }
+    if (best) return best;
+    bd = 12;
+    for (const f of st.map.fixes) { const [fx, fy] = P(f); const d = Math.hypot(x - fx, y - fy); if (d < bd) { bd = d; best = { kind: 'fix', id: f.id }; } }
+    for (const ap of st.map.airports) { const [ax, ay] = P(ap); const d = Math.hypot(x - ax, y - ay); if (d < bd) { bd = d; best = { kind: 'ap', icao: ap.icao }; } }
+    if (best) return best;
+    const p = unP(x, y); return { kind: 'pt', lat: p.lat, lon: p.lon };
+  }
+  function endPos(e) {
+    if (e.kind === 'ac') return st.traffic.find(a => a.cs === e.cs) || null;
+    if (e.kind === 'fix') return st.map.fixIndex.get(e.id) || null;
+    if (e.kind === 'ap') return st.map.airports.find(a => a.icao === e.icao) || null;
+    return e;
+  }
+  const endName = e => (e.kind === 'ac' ? e.cs : e.kind === 'fix' ? e.id : e.kind === 'ap' ? e.icao : '');
+  function addRbl(a, b) { st.rbls.push({ a, b }); if (st.rbls.length > 12) st.rbls.shift(); }
+  function rblLabel(r, pa, pb) {
+    const d = G.distNm(pa, pb);
+    const ac = r.a.kind === 'ac' ? pa : r.b.kind === 'ac' ? pb : null;
+    const station = r.a.kind === 'ac' ? (r.b.kind !== 'pt' ? pb : null) : r.b.kind === 'ac' ? (r.a.kind !== 'pt' ? pa : null) : null;
+    let text;
+    if (ac && station) {
+      const qdm = A.magBearing(st.map, ac, station);
+      text = 'QDM ' + deg(qdm) + ' QDR ' + deg((qdm + 180) % 360) + '  ' + d.toFixed(1) + ' NM';
+    } else {
+      text = deg(A.magBearing(st.map, pa, pb)) + 'M  ' + d.toFixed(1) + ' NM';
+    }
+    if (ac && ac.gs > 30) { const min = d / ac.gs * 60; text += '  ' + Math.floor(min) + ':' + String(Math.round((min % 1) * 60)).padStart(2, '0'); }
+    return text;
+  }
+  function drawRbls() {
+    const all = st.rbls.concat(st.rblDraft ? [st.rblDraft] : []);
+    st.rbls = st.rbls.filter(r => endPos(r.a) && endPos(r.b));
+    ctx.save(); ctx.font = fontData(11.5, 500); ctx.textAlign = 'center';
+    for (const r of all) {
+      const pa = endPos(r.a), pb = endPos(r.b); if (!pa || !pb) continue;
+      const [x1, y1] = P(pa), [x2, y2] = P(pb);
+      ctx.strokeStyle = C.rbl; ctx.lineWidth = 1.3; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(x1, y1, 3, 0, Math.PI * 2); ctx.arc(x2, y2, 3, 0, Math.PI * 2); ctx.fillStyle = C.rbl; ctx.fill();
+      const text = rblLabel(r, pa, pb), names = [endName(r.a), endName(r.b)].filter(Boolean).join('→');
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - 8;
+      const w = Math.max(ctx.measureText(text).width, ctx.measureText(names).width) + 10, h = names ? 30 : 17;
+      ctx.fillStyle = 'rgba(11,18,21,0.85)'; ctx.fillRect(mx - w / 2, my - 12, w, h);
+      ctx.fillStyle = C.rbl; ctx.fillText(text, mx, my);
+      if (names) { ctx.fillStyle = C.muted; ctx.fillText(names, mx, my + 13); }
+      r._label = { x: mx - w / 2, y: my - 12, w, h };
+    }
+    ctx.restore();
+  }
+  function setMeasure(on) { st.measure = on; $('tMeasure').setAttribute('aria-pressed', on); $('hudTool').hidden = !on; canvas.style.cursor = on ? 'cell' : 'crosshair'; }
+  $('tMeasure').onclick = () => setMeasure(!st.measure);
+  $('tClear').onclick = () => { st.rbls = []; st.rblDraft = null; };
+  canvas.addEventListener('contextmenu', e => {
+    const hit = st.rbls.findIndex(r => r._label && e.offsetX >= r._label.x && e.offsetX <= r._label.x + r._label.w && e.offsetY >= r._label.y && e.offsetY <= r._label.y + r._label.h);
+    if (hit >= 0) { e.preventDefault(); st.rbls.splice(hit, 1); }
+  });
+
   // ------------------------------------------------------------ pointer: pan, zoom, select
   const ptrs = new Map(); let drag = null, pinch = null;
   canvas.addEventListener('pointerdown', e => {
     canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    if (ptrs.size === 1 && e.button === 0 && (st.measure || e.shiftKey)) { const a = snapAt(e.offsetX, e.offsetY); st.rblDraft = { a, b: a }; drag = null; return; }
     if (ptrs.size === 1) drag = { x: e.offsetX, y: e.offsetY, moved: false, start: unP(e.offsetX, e.offsetY) };
     if (ptrs.size === 2) { const [p1, p2] = [...ptrs.values()]; pinch = { d: Math.hypot(p1.x - p2.x, p1.y - p2.y), scale: st.view.scale }; drag = null; }
   });
   canvas.addEventListener('pointermove', e => {
     if (!ptrs.has(e.pointerId)) return;
     ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    if (st.rblDraft) { st.rblDraft.b = snapAt(e.offsetX, e.offsetY); return; }
     if (pinch && ptrs.size === 2) { const [p1, p2] = [...ptrs.values()]; st.view.scale = clampScale(pinch.scale * Math.hypot(p1.x - p2.x, p1.y - p2.y) / pinch.d); return; }
     if (!drag) return;
     if (Math.hypot(e.offsetX - drag.x, e.offsetY - drag.y) > 4) drag.moved = true;
@@ -769,6 +994,12 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
   });
   canvas.addEventListener('pointerup', e => {
     ptrs.delete(e.pointerId);
+    if (st.rblDraft) {
+      const r = st.rblDraft; st.rblDraft = null;
+      const pa = endPos(r.a), pb = endPos(r.b);
+      if (pa && pb) { const [x1, y1] = P(pa), [x2, y2] = P(pb); if (Math.hypot(x2 - x1, y2 - y1) > 8) addRbl(r.a, r.b); }
+      return;
+    }
     if (ptrs.size < 2) pinch = null;
     if (drag && !drag.moved) select(e.offsetX, e.offsetY);
     drag = null;
@@ -797,6 +1028,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
   fillMaps();
   st.map = A.MAPS[$('mapSel').value];
   fillPositions(st.map, store.get('facility', ''));
+  $('fixList').innerHTML = [...st.map.fixIndex.keys()].sort().map(id => '<option value="' + esc(id) + '"></option>').join('');
   lastFac = $('facility').value;
   $('callsign').value = store.get('callsign', $('facility').value);
   if (onLocalServer) $('url').value = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';

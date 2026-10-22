@@ -8,7 +8,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const VERSION = '0.4.0';
+  const VERSION = '0.5.0';
 
   // ---------------------------------------------------------------- geo helpers
   const toRad = d => d * Math.PI / 180;
@@ -130,11 +130,33 @@
       return f ? { id: l.fix || l.id, lat: f.lat, lon: f.lon, alt: l.alt, altType: l.altType || (l.alt ? 'at' : null), spd: l.spd, faf: !!l.faf } : null;
     }).filter(Boolean);
   }
+  function taxiTarget(to) {
+    const t = String(to || '').toUpperCase().trim();
+    let m;
+    if ((m = t.match(/^(?:HP|HOLDING POINT)\s*(?:RWY|RUNWAY)?\s*(\d{2}[LRC]?)$/))) return 'holding point runway ' + m[1];
+    if ((m = t.match(/^(?:STAND|GATE|S)\s*([A-Z0-9]{1,4})$/))) return 'stand ' + m[1];
+    if ((m = t.match(/^(?:RWY|RUNWAY)\s*(\d{2}[LRC]?)$/))) return 'runway ' + m[1];
+    return t.toLowerCase();
+  }
   function approachName(proc) {
     if (!proc) return 'approach';
     const k = (proc.approach || '').toUpperCase();
     return (k === 'VORDME' ? 'VOR DME' : k === 'RNAV' ? 'RNP' : k) + ' approach';
   }
+
+  // Magnetic variation (degrees, east positive) from the map's WMM grid, bilinear. 0 if the map has none.
+  function magVar(map, p) {
+    const g = map && map.magvar; if (!g || !g.rows) return 0;
+    const fy = (p.lat - g.lat0) / g.step, fx = (p.lon - g.lon0) / g.step;
+    const rows = g.rows, ny = rows.length - 1, nx = rows[0].length - 1;
+    const y0 = clamp(Math.floor(fy), 0, ny), x0 = clamp(Math.floor(fx), 0, nx);
+    const y1 = Math.min(ny, y0 + 1), x1 = Math.min(nx, x0 + 1);
+    const ty = clamp(fy - y0, 0, 1), tx = clamp(fx - x0, 0, 1);
+    const a = rows[y0][x0] + (rows[y0][x1] - rows[y0][x0]) * tx, b = rows[y1][x0] + (rows[y1][x1] - rows[y1][x0]) * tx;
+    return a + (b - a) * ty;
+  }
+  // Magnetic bearing from a to b (QDM when a is the aircraft and b the station).
+  function magBearing(map, a, b) { return norm360(bearing(a, b) - magVar(map, a)); }
 
   // ---------------------------------------------------------------- phraseology
   function altPhrase(ft, sector) {
@@ -149,6 +171,9 @@
       case 'direct': return 'proceed direct ' + value;
       case 'ils': return 'cleared ' + (extra || 'approach') + ' runway ' + value;
       case 'star': return 'cleared ' + value + ' arrival';
+      case 'sid': return 'cleared ' + value + ' departure';
+      case 'squawk': return 'squawk ' + value;
+      case 'taxi': return 'taxi to ' + taxiTarget(value && value.to) + (value && value.via && value.via.length ? ' via ' + value.via.join(', ') : '');
       case 'resume': return 'resume own navigation';
       case 'contact': return 'contact ' + value;
       default: return kind + ' ' + value;
@@ -251,6 +276,18 @@
     pilots() { return [...this.sessions.values()].filter(s => s.role === 'pilot' && s.pos); }
     controllers() { return [...this.sessions.values()].filter(s => s.role === 'atc'); }
     airport(icao) { return this.sector.airports.find(a => a.icao === icao); }
+    // Next free code in 4001-4777 (octal digits only), skipping codes already in use.
+    assignSquawk() {
+      const used = new Set();
+      for (const p of this.sessions.values()) { if (p.squawk) used.add(p.squawk); if (p.cleared && p.cleared.sq) used.add(p.cleared.sq); }
+      this.sqNext = this.sqNext || 0;
+      for (let i = 0; i < 512; i++) {
+        const n = (this.sqNext + i) % 511 + 1;
+        const code = '4' + n.toString(8).padStart(3, '0');
+        if (!used.has(code)) { this.sqNext = n; return code; }
+      }
+      return '4000';
+    }
 
     _remove(s) {
       if (s.closed) return;
@@ -298,7 +335,7 @@
       const t = this._target(atc, m); if (!t) return;
       if (t.owner && t.owner !== atc.callsign) return atc.error(t.callsign + ' is controlled by ' + t.owner + '.');
       const kind = String(m.kind);
-      let value = m.value, extra = null, dir = m.dir === 'L' || m.dir === 'R' ? m.dir : null;
+      let value = m.value, extra = null, procName = null, dir = m.dir === 'L' || m.dir === 'R' ? m.dir : null;
       const arrAp = this.airport(t.fp && t.fp.arr);
       if (kind === 'hdg') { value = Math.round(Number(value)); if (!(value >= 1 && value <= 360)) return atc.error('Heading must be 1 to 360.'); t.cleared.hdg = value; }
       else if (kind === 'alt') { value = Math.round(Number(value)); if (!(value >= 1000 && value <= 45000)) return atc.error('Altitude must be 1000 to 45000 ft.'); t.cleared.alt = value; }
@@ -311,13 +348,44 @@
       else if (kind === 'ils') {
         if (!arrAp) return atc.error(t.callsign + ' is not landing at an airport on this map.');
         const rwy = activeRunway(arrAp);
-        value = rwy.id; extra = approachName(bestApproach(arrAp, rwy.id)); delete t.cleared.hdg;
+        let proc = null;
+        if (m.value) {
+          const want = String(m.value).toUpperCase();
+          proc = proceduresFor(arrAp, 'APP').find(p => p.name.toUpperCase() === want);
+          if (!proc) return atc.error(arrAp.icao + ' has no approach called ' + m.value + '.');
+        } else proc = bestApproach(arrAp, rwy.id);
+        value = proc && proc.runway && proc.runway !== 'ALL' ? proc.runway : rwy.id;
+        extra = approachName(proc); delete t.cleared.hdg;
+        t.cleared.app = proc ? proc.name : 'RWY ' + value;
+        procName = proc ? proc.name : null;
+      }
+      else if (kind === 'sid') {
+        const depAp = this.airport(t.fp && t.fp.dep);
+        if (!depAp) return atc.error(t.callsign + ' is not departing from an airport on this map.');
+        value = String(value || '').toUpperCase();
+        if (!proceduresFor(depAp, 'SID').some(p => p.name === value)) return atc.error(depAp.icao + ' has no SID called ' + value + '.');
+        t.cleared.sid = value; delete t.cleared.hdg;
+      }
+      else if (kind === 'squawk') {
+        value = String(value || '').toUpperCase();
+        if (!value || value === 'AUTO') value = this.assignSquawk();
+        if (!/^[0-7]{4}$/.test(value)) return atc.error('A squawk is four digits from 0 to 7, like 4521.');
+        if (['7500', '7600', '7700'].includes(value)) return atc.error(value + ' is an emergency code. Choose another squawk.');
+        t.cleared.sq = value;
+      }
+      else if (kind === 'taxi') {
+        const v = value && typeof value === 'object' ? value : { to: String(value || '') };
+        const to = String(v.to || '').toUpperCase().trim().slice(0, 30);
+        const via = (Array.isArray(v.via) ? v.via : String(v.via || '').split(/[\s,]+/)).map(x => String(x).toUpperCase().trim()).filter(Boolean).slice(0, 12);
+        if (!to) return atc.error('Say where to taxi, for example HP 03R or stand 204.');
+        if (!via.every(x => /^[A-Z0-9]{1,4}$/.test(x))) return atc.error('Taxiway names are letters and digits, like A, B2 or N.');
+        value = { to, via }; t.cleared.taxi = taxiTarget(to) + (via.length ? ' via ' + via.join(' ') : '');
       }
       else if (kind === 'star') {
         if (!arrAp) return atc.error(t.callsign + ' is not landing at an airport on this map.');
         value = String(value || '').toUpperCase();
         if (!proceduresFor(arrAp, 'STAR').some(p => p.name === value)) return atc.error(arrAp.icao + ' has no STAR called ' + value + '.');
-        delete t.cleared.hdg;
+        t.cleared.star = value; delete t.cleared.hdg;
       }
       else if (kind === 'resume') { delete t.cleared.hdg; }
       else if (kind === 'contact') { value = String(value || ''); }
@@ -325,7 +393,7 @@
       if (!t.owner) t.owner = atc.callsign;
       const text = t.callsign + ', ' + instrPhrase(kind, value, dir, this.sector, t.pos && t.pos.alt, extra);
       this.radio(atc.callsign, atc.freq, text);
-      t.send({ t: 'instr', from: atc.callsign, to: t.callsign, kind, value, dir, extra, text });
+      t.send({ t: 'instr', from: atc.callsign, to: t.callsign, kind, value, dir, extra, proc: procName, text });
     }
 
     _assume(atc, m) {
@@ -485,7 +553,23 @@
           this.procName = star.name; this.session.procName = star.name;
           break;
         }
+        case 'squawk': this.squawk = m.value; break;
+        case 'taxi': break;
+        case 'sid': {
+          if (this.arriving) break;
+          const sid = proceduresFor(this.ap, 'SID').find(p => p.name === m.value);
+          const legs = resolveLegs(this.sector, sid);
+          this.route = legs.concat([this.exitPoint]); this.wp = 0; this.mode = 'nav';
+          const top = legs.filter(l => l.alt).pop(); if (top && !this.atcAlt) this.initialClimb = top.alt;
+          this.procName = sid.name; this.session.procName = sid.name;
+          break;
+        }
         case 'ils':
+          if (m.proc) {
+            const proc = proceduresFor(this.ap, 'APP').find(p => p.name === m.proc);
+            const legs = proc ? resolveLegs(this.sector, proc) : [];
+            if (legs.length) { if (!legs.some(l => l.faf)) legs[legs.length - 1].faf = true; this.geo.appLegs = legs; }
+          }
           if (this.mode === 'hdg') this.ilsArmed = true;
           else { this.mode = 'nav'; this.route = this.approachLegs(); this.wp = 0; }
           break;
@@ -744,6 +828,6 @@
   return {
     VERSION, Hub, SimTrafficSource, DEMO_SECTOR, MAPS, registerMap,
     geo: { distNm, bearing, move, offsetNm, pointInPoly, angleDiff, norm360 },
-    runwayGeometry, activeRunway, proceduresFor, bestApproach, resolveLegs, instrPhrase, altPhrase
+    runwayGeometry, activeRunway, proceduresFor, bestApproach, resolveLegs, instrPhrase, altPhrase, magVar, magBearing, taxiTarget
   };
 });
