@@ -1,0 +1,23 @@
+# Render Blueprint: runs the Airwave server online for free.
+# Render reads this file when you create a "Blueprint" from this GitHub repo.
+services:
+  - type: web
+    name: airwave
+    runtime: node
+    plan: free
+    region: frankfurt            # closest Render region to Greece
+    buildCommand: npm ci --omit=dev
+    startCommand: node server/server.js
+    healthCheckPath: /healthz
+    autoDeployTrigger: checksPass   # redeploy on every push to main, once the GitHub tests pass
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: AIRWAVE_MAP
+        value: greece
+      - key: AIRWAVE_BOTS
+        value: "24"              # simulated pilots; set to 0 for real traffic only
+      - key: AIRWAVE_ATC_PASSWORD
+        sync: false              # Render asks you for this; controllers need it to log on
+      - key: AIRWAVE_PASSWORD
+        sync: false              # optional: leave empty for an open network, or set one for pilots too

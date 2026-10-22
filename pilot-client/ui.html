@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Airwave Pilot</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Two columns: your flight on the left, the radio on the right. Same dark look as the Airwave scope. */
+:root {
+  --bg: #0b1215; --panel: #11191d; --panel-2: #172227; --line: #24333a; --text: #d6e2e5; --muted: #7d939a;
+  --mine: #7fd4f0; --amber: #f0bf4f; --alert: #ff6a5a; --ok: #72d39d;
+  --f-ui: 'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --f-data: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--f-ui); font-size: 15px; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { margin: 0; font-size: 22px; letter-spacing: .14em; text-transform: uppercase; }
+header h1 span { color: var(--mine); }
+header h1 small { font-size: 13px; color: var(--muted); letter-spacing: .1em; margin-left: 6px; }
+.pills { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); padding: 4px 10px; font-size: 13px; color: var(--muted); }
+.pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.online i { background: var(--ok); } .pill.waiting i, .pill.connecting i { background: var(--amber); } .pill.online b { color: var(--text); }
+.pill b { font-weight: 600; }
+main { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 0; min-height: calc(100vh - 58px); }
+.col { padding: 16px 20px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.col + .col { border-left: 1px solid var(--line); }
+h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field { display: grid; gap: 3px; font-size: 12px; color: var(--muted); letter-spacing: .04em; min-width: 0; }
+.field.wide { grid-column: 1 / -1; }
+.field input, .field select { background: var(--panel-2); border: 1px solid var(--line); padding: 7px 8px; font-family: var(--f-data); font-size: 13px; min-width: 0; color: var(--text); }
+.seg { display: flex; border: 1px solid var(--line); grid-column: 1 / -1; }
+.seg button { flex: 1; background: none; border: 0; padding: 7px; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--text); }
+.primary { background: var(--mine); color: #062029; border: 0; padding: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; width: 100%; }
+.primary.off { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+.btn { background: var(--panel-2); border: 1px solid var(--line); padding: 6px 12px; cursor: pointer; font-weight: 600; letter-spacing: .04em; }
+.btn:hover { border-color: #34525d; }
+.hint { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13.5px; grid-column: 1 / -1; }
+.own { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; font-family: var(--f-data); font-size: 13px; }
+.own div span { display: block; color: var(--muted); font-family: var(--f-ui); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+
+.radio-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: start; }
+.freq { font-family: var(--f-data); font-size: 34px; font-weight: 600; color: var(--mine); letter-spacing: .02em; line-height: 1; }
+.freq-name { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.atc { display: flex; flex-wrap: wrap; gap: 6px; }
+.atc button { background: var(--panel-2); border: 1px solid var(--line); padding: 5px 9px; cursor: pointer; font-family: var(--f-data); font-size: 12.5px; text-align: left; }
+.atc button.on { border-color: var(--mine); color: var(--mine); }
+.atc button small { display: block; font-family: var(--f-ui); color: var(--muted); font-size: 11.5px; }
+.instr { border: 1px solid var(--amber); padding: 12px 14px; display: grid; gap: 8px; }
+.instr[hidden] { display: none; }
+.instr .from { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); }
+.instr .text { font-family: var(--f-data); font-size: 17px; line-height: 1.35; }
+.log { height: 280px; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); padding: 8px 10px; font-family: var(--f-data); font-size: 12.5px; line-height: 1.5; }
+.log p { margin: 0; overflow-wrap: anywhere; }
+.log .t { color: var(--muted); } .log .me { color: var(--mine); } .log .sys { color: var(--muted); font-style: italic; } .log .atcm { color: var(--amber); }
+.tx { display: flex; gap: 6px; margin-top: 8px; }
+.tx input { flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); padding: 8px; font-family: var(--f-data); font-size: 13px; color: var(--text); }
+table { width: 100%; border-collapse: collapse; font-family: var(--f-data); font-size: 12px; }
+th { text-align: left; font-family: var(--f-ui); font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; font-size: 11px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.q-exact, .q-rule { color: var(--ok); } .q-type { color: var(--text); } .q-similar, .q-similar\+airline { color: var(--amber); } .q-fallback { color: var(--alert); }
+.tablewrap { overflow-x: auto; max-height: 260px; overflow-y: auto; }
+.applog { height: 140px; overflow-y: auto; font-family: var(--f-data); font-size: 11.5px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); padding: 6px 8px; }
+.applog p { margin: 0; }
+@media (max-width: 820px) { main { grid-template-columns: 1fr; } .col + .col { border-left: 0; border-top: 1px solid var(--line); } .radio-top { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Air<span>wave</span> <small>Pilot</small></h1>
+  <div class="pills">
+    <span class="pill" id="pNet"><i></i><b>Network</b> <span id="pNetT">offline</span></span>
+    <span class="pill" id="pSim"><i></i><b>Sim</b> <span id="pSimT">—</span></span>
+    <span class="pill" id="pTraffic"><i></i><b>Traffic</b> <span id="pTrafficT">0</span></span>
+  </div>
+</header>
+<main>
+  <div class="col">
+    <section>
+      <h2>Your flight</h2>
+      <form class="grid" id="cfg" autocomplete="off">
+        <div class="seg" role="group" aria-label="Simulator">
+          <button type="button" data-sim="msfs">MSFS 2024 / 2020</button>
+          <button type="button" data-sim="xplane">X-Plane 12</button>
+          <button type="button" data-sim="demo">Demo</button>
+        </div>
+        <label class="field">Callsign<input id="callsign" maxlength="12" placeholder="AEE123"></label>
+        <label class="field">Aircraft type<input id="type" maxlength="4" placeholder="A20N"></label>
+        <label class="field wide">Server<input id="server" placeholder="wss://your-server.onrender.com/ws" spellcheck="false"></label>
+        <label class="field wide">Password (if the server has one)<input id="password" type="password" autocomplete="current-password"></label>
+        <label class="field wide" id="xpHostField" hidden>X-Plane computer<input id="xplaneHost" placeholder="127.0.0.1"></label>
+        <label class="check"><input type="checkbox" id="autoTune"> Follow my COM1 radio in the sim</label>
+      </form>
+      <p class="hint" id="simHint"></p>
+    </section>
+    <section>
+      <h2>Flight plan</h2>
+      <div class="grid">
+        <label class="field">From<input id="dep" maxlength="4" placeholder="LGAV"></label>
+        <label class="field">To<input id="arr" maxlength="4" placeholder="LGTS"></label>
+        <label class="field">Cruise (ft)<input id="cruise" inputmode="numeric" placeholder="34000"></label>
+        <label class="field wide">Route<input id="route" placeholder="DCT"></label>
+      </div>
+    </section>
+    <button class="primary" id="connectBtn">Connect</button>
+    <p class="hint" id="netText"></p>
+    <section>
+      <h2>Your aircraft</h2>
+      <div class="own" id="own"></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="radio-top">
+      <div>
+        <h2>COM</h2>
+        <div class="freq" id="freq">122.800</div>
+        <div class="freq-name" id="freqName">Unicom</div>
+      </div>
+      <div>
+        <h2>Online ATC</h2>
+        <div class="atc" id="atc"><span class="hint">No controllers online.</span></div>
+      </div>
+    </section>
+    <section class="instr" id="instr" hidden>
+      <div class="from" id="instrFrom"></div>
+      <div class="text" id="instrText"></div>
+      <div><button class="btn" id="readback">Read back</button></div>
+    </section>
+    <section>
+      <h2>Radio</h2>
+      <div class="log" id="log" aria-live="polite"></div>
+      <form class="tx" id="tx" autocomplete="off">
+        <input id="txt" maxlength="240" placeholder="Transmit on frequency">
+        <button class="btn">Send</button>
+      </form>
+    </section>
+    <section>
+      <h2><span>Traffic and model matching</span><span id="modelsT"></span></h2>
+      <div class="tablewrap"><table><thead><tr><th>Callsign</th><th>Type</th><th>Shown as</th><th>Match</th></tr></thead><tbody id="matches"></tbody></table></div>
+    </section>
+    <section>
+      <h2>Activity</h2>
+      <div class="applog" id="applog"></div>
+    </section>
+  </div>
+</main>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let ws, st = null, editing = false;
+  const SIM_HINT = {
+    msfs: 'Start MSFS and load into a flight. Airwave Pilot connects on its own through SimConnect.',
+    xplane: 'Start X-Plane 12. To see other aircraft, install the Airwave plugin and a CSL model pack (see the README).',
+    demo: 'Flies a pretend aircraft near Athens so you can try Airwave without a simulator. It follows ATC heading, level and speed instructions.'
+  };
+
+  function connectUi() {
+    ws = new WebSocket('ws://' + location.host + '/ui');
+    ws.onmessage = e => { const m = JSON.parse(e.data); if (m.t === 'state') render(m); else if (m.t === 'msg') msg(m); else if (m.t === 'log') applog(m.line); };
+    ws.onclose = () => { $('netText').textContent = 'Lost contact with Airwave Pilot. Is it still running?'; setTimeout(connectUi, 2000); };
+  }
+  const send = m => ws && ws.readyState === 1 && ws.send(JSON.stringify(m));
+
+  function render(s) {
+    const first = !st; st = s;
+    if (first || !editing) fillForm(s.config);
+    pill('pNet', s.net, s.net === 'online' ? 'online' : s.net);
+    pill('pSim', s.sim, s.simText || '—');
+    pill('pTraffic', s.traffic ? 'online' : '', s.traffic + (s.stats ? ' · ' + s.stats.shown + ' shown' : ''));
+    $('netText').textContent = s.netText || '';
+    $('connectBtn').textContent = s.wantOnline ? 'Disconnect' : 'Connect';
+    $('connectBtn').className = 'primary' + (s.wantOnline ? ' off' : '');
+    const o = s.own;
+    $('own').innerHTML = o ? [['Level', Math.round(o.alt)], ['Heading', String(Math.round(o.hdg)).padStart(3, '0')], ['Speed', Math.round(o.gs) + ' kt'], ['Squawk', o.squawk],
+      ['Lat', o.lat.toFixed(4)], ['Lon', o.lon.toFixed(4)], ['V/S', Math.round(o.vs)], ['Ground', o.onGround ? 'yes' : 'no']].map(([k, v]) => '<div><span>' + k + '</span>' + esc(v) + '</div>').join('')
+      : '<span class="hint">Waiting for the simulator…</span>';
+    $('freq').textContent = s.freq;
+    const here = s.atc.find(c => c.freq === s.freq);
+    $('freqName').textContent = here ? here.name + ' (' + here.cs + ')' : s.freq === '122.800' ? 'Unicom' : 'No controller on this frequency';
+    $('atc').innerHTML = s.atc.length ? s.atc.map(c => '<button data-f="' + esc(c.freq) + '" class="' + (c.freq === s.freq ? 'on' : '') + '">' + esc(c.cs) + ' ' + esc(c.freq) + '<small>' + esc(c.name) + '</small></button>').join('')
+      : '<span class="hint">No controllers online.</span>';
+    const i = s.lastInstr;
+    $('instr').hidden = !i || Date.now() - i.at > 120000;
+    if (i) { $('instrFrom').textContent = i.from + (i.kind === 'contact' ? ' · contact' : ''); $('instrText').textContent = i.text; }
+    const st2 = s.stats;
+    $('modelsT').textContent = s.config.sim === 'xplane' ? (s.plugin ? 'plugin connected · ' + s.plugin.models + ' CSL models' : 'plugin not detected') : st2 && st2.models ? st2.models + ' liveries installed' : '';
+    $('matches').innerHTML = st2 && st2.matches.length ? st2.matches.map(m => '<tr><td>' + esc(m.cs) + '</td><td>' + esc(m.type) + ' ' + esc(m.airline) + '</td><td>' + esc(m.title) + (m.livery ? '<br><span class="hint">' + esc(m.livery) + '</span>' : '') + '</td><td class="q-' + esc(m.quality) + '">' + esc(m.quality) + '</td></tr>').join('')
+      : '<tr><td colspan="4" class="hint">' + (s.traffic ? 'Traffic nearby is drawn by the simulator.' : 'No traffic nearby yet.') + '</td></tr>';
+  }
+  function pill(id, cls, text) { $(id).className = 'pill ' + (cls || ''); $(id + 'T').textContent = text; }
+  function fillForm(c) {
+    ['callsign', 'type', 'server', 'password', 'xplaneHost'].forEach(k => { $(k).value = c[k] || ''; });
+    $('dep').value = c.fp.dep || ''; $('arr').value = c.fp.arr || ''; $('route').value = c.fp.route || ''; $('cruise').value = c.fp.cruise || '';
+    $('autoTune').checked = !!c.autoTune;
+    document.querySelectorAll('[data-sim]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sim === c.sim));
+    $('xpHostField').hidden = c.sim !== 'xplane';
+    $('simHint').textContent = SIM_HINT[c.sim] || '';
+  }
+  function saveForm(sim) {
+    const c = { callsign: $('callsign').value, type: $('type').value, server: $('server').value, password: $('password').value, xplaneHost: $('xplaneHost').value || '127.0.0.1',
+      autoTune: $('autoTune').checked, sim: sim || st.config.sim, fp: { dep: $('dep').value, arr: $('arr').value, route: $('route').value, cruise: $('cruise').value } };
+    send({ t: 'config', config: c });
+  }
+  document.querySelectorAll('[data-sim]').forEach(b => b.onclick = () => saveForm(b.dataset.sim));
+  document.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('focus', () => { editing = true; });
+    inp.addEventListener('blur', () => { editing = false; if (inp.id !== 'txt') saveForm(); });
+    inp.addEventListener('change', () => { if (inp.id !== 'txt') saveForm(); });
+  });
+  $('connectBtn').onclick = () => { saveForm(); send({ t: st && st.wantOnline ? 'disconnect' : 'connect' }); };
+  $('atc').onclick = e => { const b = e.target.closest('[data-f]'); if (b) send({ t: 'tune', freq: b.dataset.f }); };
+  $('readback').onclick = () => send({ t: 'readback' });
+  $('tx').addEventListener('submit', e => { e.preventDefault(); const t = $('txt').value.trim(); if (t) { send({ t: 'send', text: t }); $('txt').value = ''; } });
+
+  function addLine(el, html, max) {
+    const stick = el.scrollTop + el.clientHeight >= el.scrollHeight - 30;
+    const p = document.createElement('p'); p.innerHTML = html; el.appendChild(p);
+    while (el.children.length > max) el.firstChild.remove();
+    if (stick) el.scrollTop = el.scrollHeight;
+  }
+  function msg(m) {
+    const t = '<span class="t">' + new Date(m.at).toISOString().slice(11, 16) + '</span> ';
+    if (m.system) return addLine($('log'), t + '<span class="sys">' + esc(m.text) + '</span>', 200);
+    const isAtc = st && st.atc.some(c => c.cs === m.from);
+    addLine($('log'), t + '<span class="' + (m.mine ? 'me' : isAtc ? 'atcm' : '') + '">' + esc(m.from) + (m.private ? ' (private)' : '') + ':</span> ' + esc(m.text), 200);
+  }
+  function applog(line) { addLine($('applog'), esc(line), 300); }
+  connectUi();
+})();
+</script>
+</body>
+</html>

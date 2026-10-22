@@ -1,0 +1,5 @@
+node_modules/
+dist/
+data/src/
+xplane-plugin/lib/
+pilot-client/config.json

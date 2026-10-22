@@ -1,0 +1,32 @@
+# Runs every Airwave test on each push. Render waits for this to pass before deploying (autoDeployTrigger: checksPass).
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Unit tests
+        run: |
+          node tools/test-procedures.js
+          node tools/test-layouts.js
+      - name: Start a server
+        run: |
+          node server/server.js --port 8080 > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:8080/healthz && break; sleep 1; done
+      - name: Network and pilot client tests
+        run: |
+          node tools/test-client.js
+          node tools/test-pilot.js
+      - name: Server log
+        if: always()
+        run: cat server.log

@@ -1,0 +1,10 @@
+{
+  "_help": "Your own model-matching rules for MSFS. The first rule that fits wins. Leave a field out to match anything. Titles and liveries must be exactly as MSFS names them; the Airwave Pilot window lists what it found.",
+  "rules": [],
+  "_example_rules": [
+    { "type": "A20N", "airline": "AEE", "title": "Airbus A320neo", "livery": "Aegean" },
+    { "type": "AT76", "title": "ATR 72-600" },
+    { "callsign": "^OAL", "type": "DH8D", "title": "Dash 8 Q400" }
+  ],
+  "fallback": ["A320", "B738"]
+}

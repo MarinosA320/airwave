@@ -1,0 +1,811 @@
+<title>Airwave ATC Scope</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: radar scope fills the left, a control column sits on the right; stacks on phones.
+   Deliberately single dark theme, like a real radar room. */
+:root {
+  --bg: #0b1215;          /* scope background */
+  --panel: #11191d;       /* side column */
+  --panel-2: #172227;     /* raised controls */
+  --line: #24333a;        /* panel borders */
+  --map: #34525d;         /* sector lines */
+  --map-dim: #1d2d33;     /* sector fill, airways */
+  --fix: #6f909a;
+  --text: #d6e2e5;
+  --muted: #7d939a;
+  --mine: #7fd4f0;        /* traffic you control */
+  --other: #a6b5b9;       /* everyone else's traffic */
+  --amber: #f0bf4f;       /* selection and handoffs */
+  --alert: #ff6a5a;       /* conflicts and errors */
+  --ok: #72d39d;
+  --f-ui: 'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --f-data: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: var(--f-ui); font-size: 15px; overflow: hidden; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 360px; height: 100%; }
+.scope { position: relative; min-width: 0; overflow: hidden; background: var(--bg); touch-action: none; }
+.scope canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+.side { display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-left: 1px solid var(--line); padding-right: env(safe-area-inset-right, 0px); }
+
+/* Scope overlays */
+.hud { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); display: flex; gap: 8px; flex-wrap: wrap; pointer-events: none; }
+.chip { font-family: var(--f-data); font-size: 12px; letter-spacing: .04em; padding: 3px 8px; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 80%, transparent); color: var(--muted); }
+.chip b { color: var(--text); font-weight: 500; }
+.chip.alert { color: var(--alert); border-color: var(--alert); }
+.zoom { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); right: 12px; display: flex; flex-direction: column; gap: 4px; }
+.zoom button { width: 34px; height: 34px; background: var(--panel-2); border: 1px solid var(--line); font-family: var(--f-data); cursor: pointer; }
+.zoom button:hover { border-color: var(--map); }
+.cmd { position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); padding: 0 10px; }
+.cmd label { font-family: var(--f-data); color: var(--amber); font-size: 13px; }
+.cmd input { flex: 1; min-width: 0; background: transparent; border: 0; padding: 10px 0; font-family: var(--f-data); font-size: 14px; letter-spacing: .03em; text-transform: uppercase; outline: none; }
+.cmd input::placeholder { color: var(--muted); text-transform: none; }
+
+/* Side column */
+.brand { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.brand h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.brand h1 span { color: var(--mine); }
+.brand .clock { font-family: var(--f-data); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pos { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--line); font-family: var(--f-data); font-size: 12.5px; }
+.status { display: inline-flex; align-items: center; gap: 6px; }
+.status i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status.on i { background: var(--ok); }
+.status.demo i { background: var(--amber); }
+.linkbtn { background: none; border: 1px solid var(--line); padding: 3px 8px; font-family: var(--f-ui); font-size: 13px; cursor: pointer; color: var(--muted); }
+.linkbtn:hover { color: var(--text); border-color: var(--map); }
+
+.scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+section { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+section h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; }
+
+.connect { display: grid; gap: 8px; }
+.connect .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field { display: grid; gap: 3px; font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+.field input, .field select { background: var(--panel-2); border: 1px solid var(--line); padding: 7px 8px; font-family: var(--f-data); font-size: 13px; min-width: 0; }
+.seg { display: flex; border: 1px solid var(--line); }
+.seg button { flex: 1; background: none; border: 0; padding: 7px; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--text); }
+.hint { font-size: 12.5px; color: var(--muted); line-height: 1.4; margin: 0; }
+.primary { background: var(--mine); color: #062029; border: 0; padding: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.primary:hover { filter: brightness(1.08); }
+
+/* Selected aircraft */
+.sel-empty { color: var(--muted); font-size: 13.5px; margin: 0; }
+.sel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.sel-cs { font-family: var(--f-data); font-size: 22px; font-weight: 600; color: var(--amber); letter-spacing: .03em; }
+.sel-owner { font-family: var(--f-data); font-size: 12px; color: var(--muted); }
+.facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 10px; margin: 8px 0 10px; font-family: var(--f-data); font-size: 12px; }
+.facts div span { display: block; color: var(--muted); font-family: var(--f-ui); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.facts .route { grid-column: 1 / -1; }
+.ctl { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+.ctl > span { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.ctl input, .ctl select { background: var(--panel-2); border: 1px solid var(--line); padding: 6px 8px; font-family: var(--f-data); font-size: 13px; min-width: 0; width: 100%; }
+.btns { display: flex; gap: 4px; }
+.btn { background: var(--panel-2); border: 1px solid var(--line); padding: 6px 10px; cursor: pointer; font-size: 13px; font-weight: 600; letter-spacing: .04em; white-space: nowrap; }
+.btn:hover { border-color: var(--map); }
+.btn.accent { border-color: var(--mine); color: var(--mine); }
+.btn.warn { border-color: var(--amber); color: var(--amber); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+/* Traffic list */
+.strips { display: grid; gap: 3px; }
+.strip { display: grid; grid-template-columns: 4px 1fr auto; gap: 8px; align-items: center; background: var(--panel-2); border: 1px solid transparent; padding: 5px 8px 5px 0; cursor: pointer; font-family: var(--f-data); font-size: 12.5px; text-align: left; width: 100%; }
+.strip:hover { border-color: var(--line); }
+.strip .bar { align-self: stretch; background: var(--line); }
+.strip.mine .bar { background: var(--mine); }
+.strip.ho .bar { background: var(--amber); }
+.strip.conf .bar { background: var(--alert); }
+.strip.sel { border-color: var(--amber); }
+.strip .cs { font-weight: 600; }
+.strip .sub { color: var(--muted); font-size: 11.5px; }
+.strip .lvl { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Radio */
+.radio { flex: 1; display: flex; flex-direction: column; min-height: 180px; }
+.log { flex: 1; overflow-y: auto; font-family: var(--f-data); font-size: 12.5px; line-height: 1.45; display: flex; flex-direction: column; gap: 3px; padding-right: 4px; min-height: 120px; }
+.log p { margin: 0; overflow-wrap: anywhere; }
+.log .t { color: var(--muted); }
+.log .me { color: var(--mine); }
+.log .sys { color: var(--muted); font-style: italic; }
+.log .err { color: var(--alert); }
+.tx { display: flex; gap: 6px; margin-top: 8px; }
+.tx input { flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line); padding: 7px 8px; font-family: var(--f-data); font-size: 13px; }
+
+.checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 13.5px; margin-bottom: 8px; }
+.checks label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.checks input { accent-color: var(--mine); }
+optgroup { font-family: var(--f-ui); color: var(--muted); }
+kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--line); padding: 0 4px; color: var(--text); }
+
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  .app { grid-template-columns: 1fr; grid-template-rows: 62vh auto; height: auto; }
+  .side { border-left: 0; border-top: 1px solid var(--line); padding-left: env(safe-area-inset-left, 0px); }
+  .scroll { overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <div class="scope" id="scope">
+    <canvas id="radar" aria-label="Radar scope"></canvas>
+    <div class="hud">
+      <div class="chip">FREQ <b id="hudFreq">---.---</b></div>
+      <div class="chip">TRAFFIC <b id="hudCount">0</b></div>
+      <div class="chip">RANGE <b id="hudRange">--</b> NM</div>
+      <div class="chip alert" id="hudStca" hidden>STCA <b id="hudStcaN">0</b></div>
+    </div>
+    <div class="zoom">
+      <button id="zin" aria-label="Zoom in">+</button>
+      <button id="zout" aria-label="Zoom out">&minus;</button>
+      <button id="zhome" aria-label="Reset view" title="Reset view">&#9678;</button>
+    </div>
+    <form class="cmd" id="cmdForm" autocomplete="off">
+      <label for="cmd">CMD</label>
+      <input id="cmd" spellcheck="false" placeholder="AEE123 L270 · FL120 · S220 · D ATH · APP · A (assume)">
+    </form>
+  </div>
+
+  <aside class="side">
+    <div class="brand">
+      <h1>Air<span>wave</span></h1>
+      <div class="clock" id="clock">--:--:--Z</div>
+    </div>
+    <div class="pos">
+      <span class="status" id="status"><i></i><span id="statusText">Not connected</span></span>
+      <button class="linkbtn" id="toggleConnect">Connection</button>
+    </div>
+
+    <div class="scroll">
+      <section id="connectPanel">
+        <h2>Connection</h2>
+        <form class="connect" id="connectForm">
+          <div class="seg" role="group" aria-label="Mode">
+            <button type="button" id="modeDemo" aria-pressed="true">Demo traffic</button>
+            <button type="button" id="modeServer" aria-pressed="false">Airwave server</button>
+          </div>
+          <label class="field" id="mapField">Map<select id="mapSel"></select></label>
+          <label class="field">Position<select id="facility"></select></label>
+          <div class="row">
+            <label class="field">Callsign<input id="callsign" value="LGGG_CTR" maxlength="12"></label>
+            <label class="field" id="countField">Aircraft<select id="count"><option value="">Auto</option><option>8</option><option>16</option><option>24</option><option>40</option></select></label>
+          </div>
+          <label class="field" id="urlField" hidden>Server address<input id="url" value="ws://localhost:8080/ws" spellcheck="false"></label>
+          <label class="field" id="pwField" hidden>Password (if the server has one)<input id="pw" type="password" autocomplete="current-password"></label>
+          <p class="hint" id="modeHint">Demo traffic runs a full Airwave network inside this page with simulated pilots who read back your instructions.</p>
+          <button class="primary" id="connectBtn" type="submit">Connect</button>
+        </form>
+      </section>
+
+      <section>
+        <h2>Map</h2>
+        <div class="checks" id="layers">
+          <label><input type="checkbox" id="lyNav" checked> Navaid names</label>
+          <label><input type="checkbox" id="lyStar"> STARs</label>
+          <label><input type="checkbox" id="lySid"> SIDs</label>
+          <label><input type="checkbox" id="lyApp" checked> Approaches</label>
+          <label><input type="checkbox" id="lyGround" checked> Airport layouts</label>
+        </div>
+        <p class="hint" id="mapNote"></p>
+      </section>
+
+      <section>
+        <h2>Selected</h2>
+        <div id="selected"><p class="sel-empty">Click an aircraft on the scope or in the list.</p></div>
+      </section>
+
+      <section>
+        <h2><span>Traffic</span><span id="listCount"></span></h2>
+        <div class="strips" id="strips"></div>
+      </section>
+
+      <section class="radio">
+        <h2><span>Radio</span><span id="radioFreq"></span></h2>
+        <div class="log" id="log" aria-live="polite"></div>
+        <form class="tx" id="txForm" autocomplete="off">
+          <input id="tx" placeholder="Transmit on frequency" maxlength="240">
+          <button class="btn" type="submit">Send</button>
+        </form>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<script src="/shared/airwave-core.js"></script>
+<script>
+(function () {
+  'use strict';
+  const A = window.Airwave;
+  const G = A.geo;
+  const $ = id => document.getElementById(id);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const C = {};
+  ['--bg', '--map', '--map-dim', '--fix', '--text', '--muted', '--mine', '--other', '--amber', '--alert', '--line', '--ok'].forEach(k => C[k.slice(2)] = css(k));
+  const LAYER_COLORS = { STAR: '#6fae8c', SID: '#c79a4a', APP: '#7fb7d4' };
+
+  // ------------------------------------------------------------ state
+  const st = {
+    mode: 'demo', conn: null, me: null, freq: null, facility: null, map: null,
+    traffic: [], atc: [], hist: new Map(), selected: null,
+    view: { lat: 0, lon: 0, scale: 0 }, conflicts: [], inConflict: new Set(),
+    layouts: new Map(), layoutBase: null
+  };
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('airwave.' + k); return v == null ? d : v; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('airwave.' + k, v); } catch (e) { /* storage unavailable */ } }
+  };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // ------------------------------------------------------------ maps and positions
+  // Opened from an Airwave server (local or online): connect back to that same address.
+  const onLocalServer = !!window.AIRWAVE_SERVED;
+  // A copy hosted elsewhere (e.g. GitHub Pages) can be built with a default online server.
+  const DEFAULT_SERVER = window.AIRWAVE_DEFAULT_SERVER || '';
+  function fillMaps() {
+    const ids = Object.keys(A.MAPS);
+    $('mapSel').innerHTML = ids.map(id => '<option value="' + esc(id) + '">' + esc(A.MAPS[id].name) + '</option>').join('');
+    $('mapSel').value = A.MAPS[store.get('map', '')] ? store.get('map', '') : (A.MAPS.GREECE ? 'GREECE' : ids[0]);
+  }
+  const KIND_ORDER = { CTR: 0, APP: 1, DEP: 2, F_APP: 3, TWR: 4, GND: 5, DEL: 6 };
+  function fillPositions(map, keep) {
+    const area = map.facilities.filter(f => f.kind === 'CTR');
+    const byAp = new Map();
+    map.facilities.filter(f => f.kind !== 'CTR').forEach(f => { if (!byAp.has(f.airport)) byAp.set(f.airport, []); byAp.get(f.airport).push(f); });
+    const opt = f => '<option value="' + esc(f.id) + '">' + esc(f.id + '  ' + f.freq + '  ' + f.name) + '</option>';
+    let html = '<optgroup label="Area control">' + area.map(opt).join('') + '</optgroup>';
+    [...byAp.keys()].sort().forEach(icao => {
+      const ap = map.airports.find(a => a.icao === icao);
+      html += '<optgroup label="' + esc(icao + (ap ? ' ' + (ap.city || ap.name) : '')) + '">' + byAp.get(icao).sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]).map(opt).join('') + '</optgroup>';
+    });
+    $('facility').innerHTML = html;
+    const want = keep && map.facilities.some(f => f.id === keep) ? keep : map.facilities[0].id;
+    $('facility').value = want;
+    $('mapNote').textContent = map.note || '';
+  }
+  function setMap(map) {
+    st.map = map; st.layouts.clear();
+    fillPositions(map, store.get('facility', ''));
+    homeView();
+  }
+  $('mapSel').addEventListener('change', () => { setMap(A.MAPS[$('mapSel').value]); $('callsign').value = $('facility').value; });
+  let lastFac = null;
+  $('facility').addEventListener('change', () => {
+    const cs = $('callsign').value.trim().toUpperCase();
+    if (!cs || cs === lastFac || st.map.facilities.some(f => f.id === cs)) $('callsign').value = $('facility').value;
+    lastFac = $('facility').value;
+  });
+
+  function setMode(m) {
+    st.mode = m === 'server' ? 'server' : 'demo';
+    $('modeDemo').setAttribute('aria-pressed', st.mode === 'demo');
+    $('modeServer').setAttribute('aria-pressed', st.mode === 'server');
+    $('urlField').hidden = st.mode !== 'server';
+    $('pwField').hidden = st.mode !== 'server';
+    $('countField').hidden = st.mode !== 'demo';
+    $('mapField').hidden = st.mode !== 'demo';
+    $('modeHint').textContent = st.mode === 'demo'
+      ? 'Demo traffic runs a full Airwave network inside this page with simulated pilots who read back your instructions.'
+      : 'Connects to an Airwave server, on your PC (ws://localhost:8080/ws) or online (wss://…/ws). A free online server can take about a minute to wake up.';
+    if (st.mode === 'server') loadServerMap().catch(() => sys('Could not load the map from the server. Is it running?', 'err'));
+    else if (st.map !== A.MAPS[$('mapSel').value]) setMap(A.MAPS[$('mapSel').value]);
+  }
+  function httpBase() { const u = $('url').value.trim().replace(/^ws/, 'http'); return u.replace(/\/ws\/?$/, ''); }
+  async function loadServerMap() {
+    const slow = setTimeout(() => sys('Waiting for the server. A sleeping online server takes about a minute to wake up…'), 4000);
+    let res;
+    try { res = await fetch(httpBase() + '/map.json'); } finally { clearTimeout(slow); }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const m = A.registerMap(await res.json());
+    st.layoutBase = httpBase() + '/layouts/';
+    setMap(m);
+  }
+  $('url').addEventListener('change', () => { st.layoutBase = null; if (st.mode === 'server') loadServerMap().catch(() => sys('Could not reach the server at ' + httpBase() + '.', 'err')); });
+  $('modeDemo').onclick = () => setMode('demo');
+  $('modeServer').onclick = () => setMode('server');
+  $('toggleConnect').onclick = () => { $('connectPanel').hidden = !$('connectPanel').hidden; };
+
+  // ------------------------------------------------------------ connection
+  $('connectForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    disconnect();
+    const callsign = $('callsign').value.trim().toUpperCase();
+    const facility = $('facility').value;
+    store.set('mode', st.mode); store.set('callsign', callsign); store.set('facility', facility); store.set('map', $('mapSel').value);
+    const hello = { t: 'hello', role: 'atc', callsign, facility, password: st.mode === 'server' ? $('pw').value : '' };
+    store.set('url', $('url').value.trim());
+    if (st.mode === 'demo') {
+      const hub = new A.Hub({ sector: st.map });
+      const n = Number($('count').value);
+      hub.addSource(new A.SimTrafficSource(n ? { count: n } : {}));
+      const session = hub.connect(m => setTimeout(() => onMessage(m), 0));
+      const timer = setInterval(() => hub.tick(1), 1000);
+      st.conn = { send: m => session.receive(m), close: () => { clearInterval(timer); session.close(); } };
+      session.receive(hello);
+      hub.tick(0);
+      setStatus('demo', 'Demo network');
+    } else {
+      try { if (!st.map || !st.layoutBase) await loadServerMap(); } catch (err) { return sys('Could not reach the server at ' + httpBase() + '. Is it running?', 'err'); }
+      let ws;
+      try { ws = new WebSocket($('url').value.trim()); } catch (err) { return sys('Could not open ' + $('url').value + '. Check the address.', 'err'); }
+      setStatus('', 'Connecting…');
+      const conn = { ws, send: m => ws.readyState === 1 && ws.send(JSON.stringify(m)), close: () => ws.close() };
+      st.conn = conn;
+      ws.onopen = () => { ws.send(JSON.stringify(hello)); setStatus('on', 'Connected'); };
+      ws.onmessage = ev => { try { onMessage(JSON.parse(ev.data)); } catch (err) { /* ignore bad frame */ } };
+      ws.onclose = () => { if (st.conn === conn) { setStatus('', 'Disconnected'); sys('Connection to the server closed.', 'err'); } };
+      ws.onerror = () => sys('Could not reach the server at ' + $('url').value + '. Is it running?', 'err');
+    }
+    $('connectPanel').hidden = true;
+  });
+
+  function disconnect() {
+    if (st.conn) { const c = st.conn; st.conn = null; c.close(); }
+    st.traffic = []; st.hist.clear(); st.selected = null; st.me = null;
+    $('log').textContent = '';
+    setStatus('', 'Not connected');
+  }
+  function setStatus(cls, text) { $('status').className = 'status ' + cls; $('statusText').textContent = text; }
+  const send = m => st.conn && st.conn.send(m);
+
+  function onMessage(m) {
+    switch (m.t) {
+      case 'welcome': {
+        st.me = m.callsign; st.freq = m.freq;
+        st.facility = st.map.facilities.find(f => f.id === m.facility) || null;
+        $('hudFreq').textContent = m.freq; $('radioFreq').textContent = m.freq;
+        $('statusText').textContent = (st.mode === 'demo' ? 'Demo · ' : '') + m.callsign;
+        if (st.facility && st.facility.area) { st.view.lat = st.facility.area.lat; st.view.lon = st.facility.area.lon; st.view.scale = Math.min(W, H) / (st.facility.area.radius * 2.4); }
+        break;
+      }
+      case 'traffic': {
+        st.traffic = m.traffic; st.atc = m.atc;
+        const seen = new Set();
+        for (const a of m.traffic) {
+          seen.add(a.cs);
+          const h = st.hist.get(a.cs) || [];
+          const last = h[h.length - 1];
+          if (!last || last.lat !== a.lat || last.lon !== a.lon) { h.push({ lat: a.lat, lon: a.lon }); if (h.length > 7) h.shift(); }
+          st.hist.set(a.cs, h);
+        }
+        for (const k of st.hist.keys()) if (!seen.has(k)) st.hist.delete(k);
+        if (st.selected && !seen.has(st.selected)) st.selected = null;
+        findConflicts();
+        renderSide();
+        break;
+      }
+      case 'msg': radio(m); break;
+      case 'handoff': sys(m.from + ' is handing off ' + m.callsign + '. Type ' + m.callsign + ' A to accept.'); break;
+      case 'error': sys(m.text, 'err'); break;
+      case 'left': if (st.selected === m.callsign) st.selected = null; break;
+    }
+  }
+
+  // ------------------------------------------------------------ radio log
+  function utc(d) { return (d || new Date()).toISOString().slice(11, 19); }
+  function addLog(html) {
+    const log = $('log');
+    const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
+    const p = document.createElement('p'); p.innerHTML = html; log.appendChild(p);
+    while (log.children.length > 200) log.firstChild.remove();
+    if (stick) log.scrollTop = log.scrollHeight;
+  }
+  function radio(m) {
+    const t = '<span class="t">' + utc(m.at ? new Date(m.at) : null).slice(0, 5) + '</span> ';
+    if (m.system) return addLog(t + '<span class="sys">' + esc(m.text) + '</span>');
+    const cls = m.from === st.me ? 'me' : '';
+    addLog(t + '<span class="' + cls + '">' + esc(m.from) + (m.private ? ' (private)' : '') + ':</span> ' + esc(m.text));
+  }
+  function sys(text, kind) { addLog('<span class="t">' + utc().slice(0, 5) + '</span> <span class="' + (kind === 'err' ? 'err' : 'sys') + '">' + esc(text) + '</span>'); }
+
+  $('txForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const text = $('tx').value.trim(); if (!text) return;
+    if (!st.conn) return sys('Connect first.', 'err');
+    send({ t: 'msg', freq: st.freq, text }); $('tx').value = '';
+  });
+
+  // ------------------------------------------------------------ conflicts (STCA)
+  function findConflicts() {
+    const out = [], air = st.traffic.filter(a => a.alt > 1500);
+    for (let i = 0; i < air.length; i++) for (let j = i + 1; j < air.length; j++) {
+      const a = air[i], b = air[j];
+      if (Math.abs(a.alt - b.alt) < 1000 && G.distNm(a, b) < 5) out.push([a.cs, b.cs]);
+    }
+    st.conflicts = out;
+    st.inConflict = new Set(out.flat());
+    $('hudStca').hidden = !out.length; $('hudStcaN').textContent = out.length;
+  }
+
+  // ------------------------------------------------------------ commands
+  const fl = ft => String(Math.round(ft / 100)).padStart(3, '0');
+  const RESERVED = /^(A|AS|FL\d+|[HLRS]\d+|D|ILS|APP|RES|REL|HO|STAR)$/;
+  function resolveCs(tok) {
+    const exact = st.traffic.find(a => a.cs === tok); if (exact) return exact.cs;
+    const m = st.traffic.filter(a => a.cs.startsWith(tok) || a.cs.endsWith(tok));
+    return m.length === 1 ? m[0].cs : null;
+  }
+  function runCommand(line) {
+    const toks = line.trim().toUpperCase().split(/\s+/).filter(Boolean);
+    if (!toks.length) return;
+    let cs = st.selected;
+    const maybe = resolveCs(toks[0]);
+    if (maybe && !RESERVED.test(toks[0])) { cs = maybe; toks.shift(); }
+    if (!cs) return sys('Select an aircraft or start with its callsign.', 'err');
+    st.selected = cs;
+    if (!toks.length) { renderSide(); return; }
+    for (let i = 0; i < toks.length; i++) {
+      const t = toks[i]; let m;
+      if (t === 'A' || t === 'AS') send({ t: 'assume', to: cs });
+      else if (t === 'REL') send({ t: 'release', to: cs });
+      else if (t === 'HO') { const next = toks[++i]; if (!next) return sys('Name the controller after HO, for example HO LGGG_CTR.', 'err'); send({ t: 'handoff', to: cs, next }); }
+      else if ((m = t.match(/^([HLR])(\d{1,3})$/))) send({ t: 'instr', to: cs, kind: 'hdg', value: Number(m[2]) || 360, dir: m[1] === 'H' ? null : m[1] });
+      else if ((m = t.match(/^FL(\d{2,3})$/))) send({ t: 'instr', to: cs, kind: 'alt', value: Number(m[1]) * 100 });
+      else if ((m = t.match(/^A(\d{1,3})$/))) send({ t: 'instr', to: cs, kind: 'alt', value: Number(m[1]) * 100 });
+      else if ((m = t.match(/^S(\d{1,3})$/))) send({ t: 'instr', to: cs, kind: 'spd', value: Number(m[1]) });
+      else if (t === 'D') { const fix = toks[++i]; if (!fix) return sys('Name the fix after D, for example D ATH.', 'err'); send({ t: 'instr', to: cs, kind: 'direct', value: fix }); }
+      else if (t.startsWith('D') && st.map.fixIndex.has(t.slice(1))) send({ t: 'instr', to: cs, kind: 'direct', value: t.slice(1) });
+      else if (t === 'ILS' || t === 'APP') send({ t: 'instr', to: cs, kind: 'ils' });
+      else if (t === 'STAR') { const name = toks[++i]; if (!name) return sys('Name the STAR after STAR.', 'err'); send({ t: 'instr', to: cs, kind: 'star', value: name }); }
+      else if (t === 'RES') send({ t: 'instr', to: cs, kind: 'resume' });
+      else return sys('Unknown command ' + t + '. Try L270, FL120, A60, S220, D ATH, APP, STAR name, RES, A, REL or HO.', 'err');
+    }
+  }
+  $('cmdForm').addEventListener('submit', e => { e.preventDefault(); if (!st.conn) return sys('Connect first.', 'err'); runCommand($('cmd').value); $('cmd').value = ''; });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { st.selected = null; renderSide(); return; }
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key.length === 1 && /[a-z0-9]/i.test(e.key)) $('cmd').focus();
+  });
+
+  // ------------------------------------------------------------ side panel
+  function stripClass(a) {
+    return [st.inConflict.has(a.cs) ? 'conf' : '', a.owner === st.me ? 'mine' : '', a.handoff === st.me ? 'ho' : '', a.cs === st.selected ? 'sel' : ''].join(' ');
+  }
+  function renderSide() {
+    $('hudCount').textContent = st.traffic.length;
+    const rank = a => (a.handoff === st.me ? 0 : a.owner === st.me ? 1 : !a.owner ? 2 : 3);
+    const list = [...st.traffic].sort((a, b) => rank(a) - rank(b) || a.cs.localeCompare(b.cs));
+    $('listCount').textContent = list.filter(a => a.owner === st.me).length + ' yours / ' + list.length;
+    $('strips').innerHTML = list.map(a => {
+      const trend = a.vs > 300 ? '↑' : a.vs < -300 ? '↓' : ' ';
+      const clr = a.cleared && a.cleared.alt ? fl(a.cleared.alt) : '';
+      return '<button class="strip ' + stripClass(a) + '" data-cs="' + esc(a.cs) + '"><span class="bar"></span>' +
+        '<span><span class="cs">' + esc(a.cs) + '</span> <span class="sub">' + esc(a.type) + ' ' + esc((a.fp && a.fp.dep) || '') + '→' + esc((a.fp && a.fp.arr) || '') + '</span><br>' +
+        '<span class="sub">' + (a.owner ? esc(a.owner) : 'unowned') + (a.handoff ? ' → ' + esc(a.handoff) : '') + '</span></span>' +
+        '<span class="lvl">' + fl(a.alt) + trend + clr + '<br><span class="sub">' + a.gs + 'kt</span></span></button>';
+    }).join('');
+    renderSelected();
+  }
+  $('strips').addEventListener('click', e => { const b = e.target.closest('.strip'); if (b) { st.selected = b.dataset.cs; renderSide(); } });
+
+  let selRenderedFor = null;
+  function renderSelected() {
+    const a = st.traffic.find(x => x.cs === st.selected);
+    const box = $('selected');
+    if (!a) { if (selRenderedFor !== '') { box.innerHTML = '<p class="sel-empty">Click an aircraft on the scope or in the list.</p>'; selRenderedFor = ''; } return; }
+    const mine = a.owner === st.me;
+    const ownerText = a.handoff === st.me ? 'Handoff to you from ' + a.owner : a.owner ? (mine ? 'You control this aircraft' : 'Controlled by ' + a.owner) : 'Not controlled';
+    const facts = '<div><span>Level</span>' + fl(a.alt) + '</div><div><span>Cleared</span>' + (a.cleared && a.cleared.alt ? fl(a.cleared.alt) : '—') + '</div>' +
+      '<div><span>Speed</span>' + a.gs + '</div><div><span>Squawk</span>' + esc(a.sq || '—') + '</div>' +
+      '<div class="route"><span>Route</span>' + esc((a.fp && a.fp.dep) || '?') + ' ' + esc((a.fp && a.fp.route) || '') + ' ' + esc((a.fp && a.fp.arr) || '?') + '</div>';
+    if (selRenderedFor === a.cs) {
+      box.querySelector('.facts').innerHTML = facts;
+      box.querySelector('.sel-owner').textContent = ownerText;
+      box.querySelector('[data-act=own]').outerHTML = ownButton(a);
+      return;
+    }
+    selRenderedFor = a.cs;
+    const others = st.atc.filter(c => c.cs !== st.me);
+    const arrAp0 = st.map.airports.find(x => x.icao === (a.fp && a.fp.arr));
+    const depAp = st.map.airports.find(x => x.icao === (a.fp && a.fp.dep));
+    const arrAp = arrAp0 && (!depAp || G.distNm(a, arrAp0) < G.distNm(a, depAp)) ? arrAp0 : null;
+    const stars = arrAp ? A.proceduresFor(arrAp, 'STAR', A.activeRunway(arrAp).id) : [];
+    const near = st.map.fixes.slice().sort((x, y) => G.distNm(a, x) - G.distNm(a, y)).slice(0, 12).sort((x, y) => x.id.localeCompare(y.id));
+    const app = arrAp ? A.bestApproach(arrAp, A.activeRunway(arrAp).id) : null;
+    box.innerHTML =
+      '<div class="sel-head"><span class="sel-cs">' + esc(a.cs) + '</span><span class="sel-owner">' + esc(ownerText) + '</span></div>' +
+      '<div class="facts">' + facts + '</div>' +
+      '<div class="ctl"><span>Heading</span><input id="iHdg" inputmode="numeric" maxlength="3" value="' + String(a.hdg).padStart(3, '0') + '"><div class="btns"><button class="btn" data-act="L">Left</button><button class="btn" data-act="R">Right</button></div></div>' +
+      '<div class="ctl"><span>Level</span><input id="iAlt" maxlength="6" placeholder="FL120 or 6000" value="' + (a.cleared && a.cleared.alt ? (a.cleared.alt > (st.map.transitionAlt || 6000) ? 'FL' + fl(a.cleared.alt) : a.cleared.alt) : '') + '"><button class="btn" data-act="alt">Set</button></div>' +
+      '<div class="ctl"><span>Speed</span><input id="iSpd" inputmode="numeric" maxlength="3" placeholder="kt" value="' + ((a.cleared && a.cleared.spd) || '') + '"><button class="btn" data-act="spd">Set</button></div>' +
+      '<div class="ctl"><span>Direct</span><select id="iFix">' + near.map(f => '<option>' + esc(f.id) + '</option>').join('') + '</select><button class="btn" data-act="dct">Go</button></div>' +
+      (stars.length ? '<div class="ctl"><span>STAR</span><select id="iStar">' + stars.map(p => '<option>' + esc(p.name) + '</option>').join('') + '</select><button class="btn" data-act="star">Clear</button></div>' : '') +
+      '<div class="actions">' + ownButton(a) +
+      (arrAp ? '<button class="btn" data-act="ils">Clear ' + esc(app ? app.approach : 'approach') + ' ' + esc(A.activeRunway(arrAp).id) + '</button>' : '') +
+      '<button class="btn" data-act="res">Own nav</button>' +
+      (others.length ? '<select class="btn" id="iHo" aria-label="Hand off to"><option value="">Hand off to…</option>' + others.map(c => '<option>' + esc(c.cs) + '</option>').join('') + '</select>' : '') +
+      '</div>';
+  }
+  function ownButton(a) {
+    if (a.owner === st.me) return '<button class="btn" data-act="own" data-v="rel">Release</button>';
+    if (a.handoff === st.me) return '<button class="btn warn" data-act="own" data-v="as">Accept handoff</button>';
+    return '<button class="btn accent" data-act="own" data-v="as">Assume</button>';
+  }
+  $('selected').addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'); if (!b || !st.selected) return;
+    const cs = st.selected, act = b.dataset.act;
+    if (act === 'L' || act === 'R') { const v = Number($('iHdg').value); if (!(v >= 1 && v <= 360)) return sys('Heading must be 1 to 360.', 'err'); send({ t: 'instr', to: cs, kind: 'hdg', value: v, dir: act }); }
+    if (act === 'alt') { const raw = $('iAlt').value.trim().toUpperCase(); const v = raw.startsWith('FL') ? Number(raw.slice(2)) * 100 : Number(raw); if (!v) return sys('Enter a level like FL120 or an altitude like 5000.', 'err'); send({ t: 'instr', to: cs, kind: 'alt', value: v }); }
+    if (act === 'spd') send({ t: 'instr', to: cs, kind: 'spd', value: Number($('iSpd').value) || 0 });
+    if (act === 'dct') send({ t: 'instr', to: cs, kind: 'direct', value: $('iFix').value });
+    if (act === 'star') send({ t: 'instr', to: cs, kind: 'star', value: $('iStar').value });
+    if (act === 'ils') send({ t: 'instr', to: cs, kind: 'ils' });
+    if (act === 'res') send({ t: 'instr', to: cs, kind: 'resume' });
+    if (act === 'own') send({ t: b.dataset.v === 'rel' ? 'release' : 'assume', to: cs });
+  });
+  $('selected').addEventListener('change', e => { if (e.target.id === 'iHo' && e.target.value) { send({ t: 'handoff', to: st.selected, next: e.target.value }); e.target.value = ''; } });
+  $('selected').addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const map = { iAlt: 'alt', iSpd: 'spd' }; const act = map[e.target.id];
+    if (act) $('selected').querySelector('[data-act=' + act + ']').click();
+    if (e.target.id === 'iHdg') { const a = st.traffic.find(x => x.cs === st.selected); const v = Number(e.target.value); if (a && v) send({ t: 'instr', to: a.cs, kind: 'hdg', value: v, dir: G.angleDiff(a.hdg, v) < 0 ? 'L' : 'R' }); }
+  });
+
+  // ------------------------------------------------------------ airport layouts (OpenStreetMap, fetched on demand)
+  function layoutFor(ap) {
+    if (!st.layoutBase || !$('lyGround').checked) return null;
+    const v = st.layouts.get(ap.icao);
+    if (v !== undefined) return v;
+    st.layouts.set(ap.icao, null);
+    fetch(st.layoutBase + ap.icao + '.json').then(r => (r.ok ? r.json() : null)).then(L => { if (L) st.layouts.set(ap.icao, L); }).catch(() => {});
+    return null;
+  }
+
+  // ------------------------------------------------------------ radar drawing
+  const canvas = $('radar'), ctx = canvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    const r = $('scope').getBoundingClientRect();
+    DPR = window.devicePixelRatio || 1; W = r.width; H = r.height;
+    canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+    if (!st.view.scale && st.map) homeView();
+  }
+  function homeView() {
+    const m = st.map; if (!m || !W) return;
+    const b = m.bounds;
+    if (!b) { st.view.lat = m.center.lat; st.view.lon = m.center.lon; st.view.scale = 3; return; }
+    st.view.lat = (b.minLat + b.maxLat) / 2; st.view.lon = (b.minLon + b.maxLon) / 2;
+    const hNm = (b.maxLat - b.minLat) * 60, wNm = (b.maxLon - b.minLon) * 60 * Math.cos(st.view.lat * Math.PI / 180);
+    st.view.scale = Math.min((W - 40) / wNm, (H - 110) / hNm);
+  }
+  new ResizeObserver(resize).observe($('scope'));
+
+  function P(p) { const o = G.offsetNm(st.view, p); return [W / 2 + o.x * st.view.scale, H / 2 - o.y * st.view.scale]; }
+  function unP(x, y) { const nmx = (x - W / 2) / st.view.scale, nmy = (H / 2 - y) / st.view.scale; return { lat: st.view.lat + nmy / 60, lon: st.view.lon + nmx / (60 * Math.cos(st.view.lat * Math.PI / 180)) }; }
+  const fontData = (px, w) => (w || 400) + ' ' + px + 'px "IBM Plex Mono", ui-monospace, Menlo, monospace';
+  const onScreen = (x, y, pad = 60) => x > -pad && y > -pad && x < W + pad && y < H + pad;
+  function polyPath(pts) { ctx.beginPath(); pts.forEach((q, i) => { const [x, y] = P({ lat: q[0], lon: q[1] }); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); }
+
+  function drawLayout(ap, L, sc) {
+    ctx.save();
+    for (const a of L.aprons) { polyPath(a.poly); ctx.closePath(); ctx.fillStyle = 'rgba(120,150,160,0.10)'; ctx.fill(); }
+    for (const t of L.terminals) { polyPath(t.poly); ctx.closePath(); ctx.fillStyle = 'rgba(160,180,190,0.22)'; ctx.fill(); ctx.strokeStyle = C.map; ctx.lineWidth = 1; ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(214,226,229,0.28)'; ctx.lineCap = 'round';
+    for (const t of L.taxiways) { polyPath(t.line); ctx.lineWidth = Math.max(1, Math.min(10, sc * 0.012)); ctx.stroke(); }
+    ctx.lineWidth = Math.max(2, sc * 0.025); ctx.strokeStyle = 'rgba(214,226,229,0.75)';
+    for (const r of L.runways) { polyPath(r.line); ctx.stroke(); }
+    ctx.lineCap = 'butt';
+    if (sc > 250) {
+      ctx.font = fontData(11, 600); ctx.fillStyle = C.amber; ctx.textAlign = 'center';
+      const done = new Set();
+      for (const t of L.taxiways) { if (!t.ref || done.has(t.ref)) continue; done.add(t.ref); const q = t.line[Math.floor(t.line.length / 2)]; const [x, y] = P({ lat: q[0], lon: q[1] }); if (onScreen(x, y, 0)) ctx.fillText(t.ref, x, y - 4); }
+      ctx.fillStyle = C.alert;
+      for (const h of L.holding) { const [x, y] = P(h); if (onScreen(x, y, 0)) ctx.fillRect(x - 4, y - 1, 8, 2); }
+    }
+    if (sc > 400) {
+      ctx.font = fontData(10); ctx.textAlign = 'center';
+      for (const s of L.stands) { const [x, y] = P(s); if (!onScreen(x, y, 0)) continue; ctx.fillStyle = C.mine; ctx.fillRect(x - 1.5, y - 1.5, 3, 3); if (s.ref) { ctx.fillStyle = C.muted; ctx.fillText(s.ref, x, y - 5); } }
+      for (const g of L.gates) { const [x, y] = P(g); if (!onScreen(x, y, 0)) continue; ctx.fillStyle = C.ok; ctx.fillText(g.ref || 'G', x, y + 12); }
+    }
+    ctx.restore();
+  }
+
+  function drawProcedures(sc) {
+    const show = { STAR: $('lyStar').checked, SID: $('lySid').checked, APP: $('lyApp').checked };
+    if (!show.STAR && !show.SID && !show.APP) return;
+    ctx.save(); ctx.font = fontData(10); ctx.textAlign = 'left';
+    for (const ap of st.map.airports) {
+      if (!ap.procedures || !ap.procedures.length) continue;
+      const [ax, ay] = P(ap); if (!onScreen(ax, ay, 400)) continue;
+      for (const pr of ap.procedures) {
+        if (!show[pr.type]) continue;
+        const legs = A.resolveLegs(st.map, pr); if (!legs.length) continue;
+        ctx.strokeStyle = LAYER_COLORS[pr.type]; ctx.globalAlpha = 0.7; ctx.lineWidth = 1.2; ctx.setLineDash(pr.type === 'SID' ? [5, 3] : []);
+        ctx.beginPath(); legs.forEach((l, i) => { const [x, y] = P(l); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+        if (pr.type === 'APP') { const g = A.runwayGeometry(A.activeRunway(ap)); const [tx, ty] = P(g.thr); ctx.lineTo(tx, ty); }
+        ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+        ctx.fillStyle = LAYER_COLORS[pr.type];
+        for (const l of legs) {
+          const [x, y] = P(l); ctx.fillRect(x - 2, y - 2, 4, 4);
+          if (sc > 4) ctx.fillText(l.id + (l.alt ? ' ' + (l.altType === 'above' ? '+' : l.altType === 'below' ? '-' : '') + l.alt : ''), x + 5, y - 4);
+        }
+        if (sc > 2) { const [x, y] = P(legs[0]); ctx.fillText(pr.name, x + 5, y + 10); }
+      }
+    }
+    ctx.restore();
+  }
+
+  function draw() {
+    requestAnimationFrame(draw);
+    if (!st.map || !W) return;
+    const m = st.map;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    const sc = st.view.scale;
+    $('hudRange').textContent = Math.round(Math.min(W, H) / sc / 2);
+
+    // Sectors
+    const mineSectors = st.facility && st.facility.covers ? st.facility.covers : [];
+    for (const z of m.sectors) {
+      polyPath(z.polygon); ctx.closePath();
+      if (mineSectors.includes(z.id)) { ctx.fillStyle = 'rgba(127,212,240,0.035)'; ctx.fill(); }
+      ctx.strokeStyle = C.map; ctx.lineWidth = 1.2; ctx.stroke();
+    }
+    ctx.textAlign = 'center';
+    for (const z of m.sectors) {
+      const c = z.polygon.reduce((s, [lat, lon]) => ({ lat: s.lat + lat / z.polygon.length, lon: s.lon + lon / z.polygon.length }), { lat: 0, lon: 0 });
+      const [x, y] = P(c); const fs = Math.max(13, Math.min(30, sc * 4));
+      ctx.fillStyle = C['map-dim']; ctx.font = '700 ' + fs + 'px "Barlow Semi Condensed", sans-serif';
+      ctx.fillText(z.name.toUpperCase(), x, y);
+    }
+    // My area (approach or tower circle) with range rings
+    if (st.facility && st.facility.area) {
+      const fa = st.facility.area; const [cx, cy] = P(fa);
+      ctx.strokeStyle = C['map-dim']; ctx.lineWidth = 1;
+      for (let r = 10; r < fa.radius; r += 10) { ctx.beginPath(); ctx.arc(cx, cy, r * sc, 0, Math.PI * 2); ctx.stroke(); }
+      ctx.strokeStyle = 'rgba(127,212,240,0.35)'; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.arc(cx, cy, fa.radius * sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // Airways
+    ctx.setLineDash([2, 6]); ctx.strokeStyle = C.map; ctx.lineWidth = 1;
+    for (const [a, b] of m.airways || []) { const fa = m.fixIndex.get(a), fb = m.fixIndex.get(b); if (!fa || !fb) continue; const [x1, y1] = P(fa), [x2, y2] = P(fb); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+    ctx.setLineDash([]);
+    // Airport layouts under everything else at the airport
+    if (sc > 60) for (const ap of m.airports) { const [x, y] = P(ap); if (!onScreen(x, y, sc * 3)) continue; const L = layoutFor(ap); if (L) drawLayout(ap, L, sc); }
+    drawProcedures(sc);
+    // Navaids
+    const showNames = $('lyNav').checked && sc >= 3;
+    ctx.font = fontData(11); ctx.textAlign = 'left';
+    for (const f of m.fixes) {
+      const [x, y] = P(f); if (!onScreen(x, y)) continue;
+      ctx.strokeStyle = C.fix; ctx.fillStyle = C.fix; ctx.lineWidth = 1.1;
+      const s = sc < 2 ? 3 : 5;
+      if (f.kind === 'ndb') { ctx.setLineDash([1.5, 2]); ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.fillRect(x - 1, y - 1, 2, 2); }
+      else if (f.kind === 'tacan') { ctx.beginPath(); ctx.moveTo(x, y - s); ctx.lineTo(x + s, y + s * 0.7); ctx.lineTo(x - s, y + s * 0.7); ctx.closePath(); ctx.stroke(); }
+      else { ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i; const px = x + s * Math.cos(a), py = y + s * Math.sin(a); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.closePath(); ctx.stroke(); }
+      if (showNames) ctx.fillText(f.id, x + s + 3, y + 4);
+    }
+    // Airports
+    for (const ap of m.airports) {
+      const [x, y] = P(ap); if (!onScreen(x, y, 200)) continue;
+      for (const r of ap.runways) {
+        const g = A.runwayGeometry(r); const [x1, y1] = P(g.thr), [x2, y2] = P(g.end);
+        ctx.strokeStyle = C.text; ctx.lineWidth = sc > 60 ? 1 : 2.4; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        if (r.active && sc >= 2.5) {
+          const far = G.move(g.thr, g.recip, 12); const [x3, y3] = P(far);
+          ctx.strokeStyle = C.map; ctx.lineWidth = 1; ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x3, y3); ctx.stroke(); ctx.setLineDash([]);
+          for (let d = 4; d <= 12; d += 4) { const t = G.move(g.thr, g.recip, d); const [tx, ty] = P(t); ctx.fillStyle = C.map; ctx.fillRect(tx - 1.5, ty - 1.5, 3, 3); }
+        }
+      }
+      if (sc < 1.2 && !ap.scheduled) continue;
+      ctx.fillStyle = ap.scheduled ? C.muted : C['map'];
+      if (sc < 2.2) { ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill(); }
+      ctx.font = fontData(11, 500); ctx.textAlign = 'left'; ctx.fillText(ap.icao, x + 7, y - 6);
+    }
+
+    // Traffic
+    const blink = Math.floor(Date.now() / 500) % 2 === 0;
+    const placed = [];
+    const order = [...st.traffic].sort((a, b) => (b.cs === st.selected) - (a.cs === st.selected) || (b.owner === st.me) - (a.owner === st.me));
+    for (const a of order) {
+      const [x, y] = P(a); a._hit = null;
+      if (!onScreen(x, y)) continue;
+      const mine = a.owner === st.me, ho = a.handoff === st.me, sel = a.cs === st.selected, conf = st.inConflict.has(a.cs);
+      const col = conf ? C.alert : ho ? C.amber : mine ? C.mine : C.other;
+      const h = st.hist.get(a.cs) || [];
+      ctx.fillStyle = col; ctx.globalAlpha = 0.45;
+      h.slice(0, -1).forEach((p, i) => { const [hx, hy] = P(p); const s = 1 + i * 0.35; ctx.fillRect(hx - s, hy - s, s * 2, s * 2); });
+      ctx.globalAlpha = 1;
+      const v = G.move(a, a.hdg, a.gs / 60); const [vx, vy] = P(v);
+      ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(vx, vy); ctx.stroke();
+      ctx.lineWidth = 1.6; ctx.strokeStyle = col;
+      if (mine || ho) ctx.strokeRect(x - 4.5, y - 4.5, 9, 9);
+      else if (a.owner) { ctx.beginPath(); ctx.moveTo(x, y - 5.5); ctx.lineTo(x + 5.5, y); ctx.lineTo(x, y + 5.5); ctx.lineTo(x - 5.5, y); ctx.closePath(); ctx.stroke(); }
+      else { ctx.beginPath(); ctx.moveTo(x - 4.5, y); ctx.lineTo(x + 4.5, y); ctx.moveTo(x, y - 4.5); ctx.lineTo(x, y + 4.5); ctx.stroke(); }
+      const trend = a.vs > 300 ? '↑' : a.vs < -300 ? '↓' : ' ';
+      const lines = [a.cs + (ho && blink ? ' HO' : ''), fl(a.alt) + trend + (a.cleared && a.cleared.alt ? fl(a.cleared.alt) : '   ') + ' ' + String(Math.round(a.gs / 10)).padStart(2, '0')];
+      if (mine || sel) lines.push(a.type + ' ' + ((a.fp && a.fp.arr) || '') + (a.proc ? ' ' + a.proc : ''));
+      if (conf) lines.unshift('STCA');
+      ctx.font = fontData(12, 500); const lh = 14;
+      const wpx = Math.max(...lines.map(s => ctx.measureText(s).width));
+      const bh = lines.length * lh;
+      const spots = [[18, -26], [18, 12], [-wpx - 18, -26], [-wpx - 18, 12], [18, -26 - bh], [-wpx - 18, 12 + bh]];
+      let bx = x + 18, by = y - 26;
+      for (const [dx, dy] of spots) {
+        const r = { x: x + dx - 4, y: y + dy - 2, w: wpx + 8, h: bh + 4 };
+        if (!placed.some(q => r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h)) { bx = x + dx; by = y + dy; break; }
+      }
+      placed.push({ x: bx - 4, y: by - 2, w: wpx + 8, h: bh + 4 });
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx < x ? bx + wpx + 2 : bx - 3, by + 10); ctx.stroke();
+      if (sel) { ctx.strokeStyle = C.amber; ctx.lineWidth = 1; ctx.strokeRect(bx - 4, by - 2, wpx + 8, bh + 4); }
+      ctx.textAlign = 'left';
+      lines.forEach((s, i) => { ctx.fillStyle = s === 'STCA' ? C.alert : i === 0 && sel ? C.amber : col; ctx.fillText(s, bx, by + 10 + i * lh); });
+      a._hit = { x, y, bx: bx - 4, by: by - 2, bw: wpx + 8, bh: bh + 4 };
+    }
+    ctx.strokeStyle = C.alert; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+    for (const [a, b] of st.conflicts) { const ta = st.traffic.find(t => t.cs === a), tb = st.traffic.find(t => t.cs === b); if (!ta || !tb) continue; const [x1, y1] = P(ta), [x2, y2] = P(tb); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+    ctx.setLineDash([]);
+    // Scale bar
+    const nice = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200];
+    const nm = nice.find(n => n * sc >= 70) || 200; const bl = nm * sc, sx = 16, sy = H - 72;
+    ctx.strokeStyle = C.muted; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(sx, sy - 4); ctx.lineTo(sx, sy); ctx.lineTo(sx + bl, sy); ctx.lineTo(sx + bl, sy - 4); ctx.stroke();
+    ctx.fillStyle = C.muted; ctx.font = fontData(11); ctx.textAlign = 'left'; ctx.fillText(nm + ' NM', sx + bl + 6, sy + 2);
+    ctx.fillText(W < 640 ? 'Approximate map data' : 'Map data is approximate. Not for real-world navigation.', sx, sy - 14);
+  }
+
+  // ------------------------------------------------------------ pointer: pan, zoom, select
+  const ptrs = new Map(); let drag = null, pinch = null;
+  canvas.addEventListener('pointerdown', e => {
+    canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    if (ptrs.size === 1) drag = { x: e.offsetX, y: e.offsetY, moved: false, start: unP(e.offsetX, e.offsetY) };
+    if (ptrs.size === 2) { const [p1, p2] = [...ptrs.values()]; pinch = { d: Math.hypot(p1.x - p2.x, p1.y - p2.y), scale: st.view.scale }; drag = null; }
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    if (pinch && ptrs.size === 2) { const [p1, p2] = [...ptrs.values()]; st.view.scale = clampScale(pinch.scale * Math.hypot(p1.x - p2.x, p1.y - p2.y) / pinch.d); return; }
+    if (!drag) return;
+    if (Math.hypot(e.offsetX - drag.x, e.offsetY - drag.y) > 4) drag.moved = true;
+    if (drag.moved) { const now = unP(e.offsetX, e.offsetY); st.view.lat += drag.start.lat - now.lat; st.view.lon += drag.start.lon - now.lon; }
+  });
+  canvas.addEventListener('pointerup', e => {
+    ptrs.delete(e.pointerId);
+    if (ptrs.size < 2) pinch = null;
+    if (drag && !drag.moved) select(e.offsetX, e.offsetY);
+    drag = null;
+  });
+  canvas.addEventListener('pointercancel', e => { ptrs.delete(e.pointerId); drag = null; pinch = null; });
+  function select(x, y) {
+    let best = null, bd = 18;
+    for (const a of st.traffic) {
+      const h = a._hit; if (!h) continue;
+      if (x >= h.bx && x <= h.bx + h.bw && y >= h.by && y <= h.by + h.bh) { best = a; bd = 0; break; }
+      const d = Math.hypot(x - h.x, y - h.y); if (d < bd) { bd = d; best = a; }
+    }
+    st.selected = best ? best.cs : null; renderSide();
+  }
+  const clampScale = s => Math.max(0.5, Math.min(4000, s));
+  function zoomAt(f, x, y) { const before = unP(x, y); st.view.scale = clampScale(st.view.scale * f); const after = unP(x, y); st.view.lat += before.lat - after.lat; st.view.lon += before.lon - after.lon; }
+  canvas.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.offsetX, e.offsetY); }, { passive: false });
+  $('zin').onclick = () => zoomAt(1.4, W / 2, H / 2);
+  $('zout').onclick = () => zoomAt(1 / 1.4, W / 2, H / 2);
+  $('zhome').onclick = homeView;
+
+  setInterval(() => { $('clock').textContent = utc() + 'Z'; }, 1000);
+  $('clock').textContent = utc() + 'Z';
+
+  // ------------------------------------------------------------ start
+  fillMaps();
+  st.map = A.MAPS[$('mapSel').value];
+  fillPositions(st.map, store.get('facility', ''));
+  lastFac = $('facility').value;
+  $('callsign').value = store.get('callsign', $('facility').value);
+  if (onLocalServer) $('url').value = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+  else $('url').value = store.get('url', DEFAULT_SERVER || $('url').value);
+  resize();
+  requestAnimationFrame(draw);
+  const startMode = store.get('mode', onLocalServer ? 'server' : 'demo');
+  setMode(startMode);
+  // Start straight into demo traffic so the scope opens in a working state.
+  if (st.mode === 'demo') $('connectForm').requestSubmit();
+})();
+</script>

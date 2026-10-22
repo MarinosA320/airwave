@@ -1,0 +1,25 @@
+{
+  "name": "airwave",
+  "version": "0.3.0",
+  "description": "Airwave flight sim network: server and ATC scope",
+  "main": "server/server.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node tools/test-client.js",
+    "build-demo": "node tools/build-demo.js",
+    "fetch-layouts": "node tools/fetch-layouts.js",
+    "build-map": "python3 tools/build-greece.py",
+    "pilot": "node pilot-client/pilot.js",
+    "test-pilot": "node tools/test-pilot.js"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "node-simconnect": "4.2.0",
+    "ws": "^8.22.0"
+  },
+  "private": true
+}
