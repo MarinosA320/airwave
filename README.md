@@ -39,7 +39,7 @@ The server runs for free on [Render](https://render.com), deployed straight from
    - **ATC scope:** open that address in any browser.
    - **Pilots:** in Airwave Pilot, set Server to `wss://<name>.onrender.com/ws`.
 
-Every push to `main` redeploys automatically, once the GitHub tests pass.
+Every push to `main` redeploys automatically. GitHub runs the tests on each push too; check the Actions tab before relying on a change.
 
 **About the free plan:** the server sleeps after 15 minutes with nobody connected, and the first person to connect wakes it in about a minute.
 While anyone is connected it stays awake. Free plans include 750 hours a month, enough to run one server all month.

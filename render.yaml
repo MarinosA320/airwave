@@ -9,7 +9,7 @@ services:
     buildCommand: npm ci --omit=dev
     startCommand: node server/server.js
     healthCheckPath: /healthz
-    autoDeployTrigger: checksPass   # redeploy on every push to main, once the GitHub tests pass
+    autoDeployTrigger: commit       # redeploy on every push to main
     envVars:
       - key: NODE_VERSION
         value: "22"

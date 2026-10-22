@@ -33,4 +33,5 @@ jobs:
           git add data/layouts
           if git diff --cached --quiet; then echo "No changes"; exit 0; fi
           git commit -m "Update airport layouts from OpenStreetMap"
+          git pull --rebase origin main
           git push
