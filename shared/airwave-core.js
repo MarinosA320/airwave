@@ -8,7 +8,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const VERSION = '0.9.1';
+  const VERSION = '0.10.0';
 
   // ---------------------------------------------------------------- geo helpers
   const toRad = d => d * Math.PI / 180;
@@ -483,6 +483,8 @@
         case 'req': return h._req(this, m);
         case 'voice': return h._voice(this, m);
         case 'atis': return h._atisRemarks(this, m);
+        case 'kick': return h._kick(this, m);
+        case 'broadcast': return h._broadcastMsg(this, m);
         case 'ping': return this.send({ t: 'pong', ts: m.ts });
         default: return this.error('Unknown message type ' + m.t + '.');
       }
@@ -503,6 +505,10 @@
       this.atisState = {};                        // letter, text and controller remarks by ICAO
       this.reqId = 0;
       this.now = opts.now || (() => Date.now());
+      // Server hooks for member accounts: policy(session, role, hello, facility) returns an error text to refuse a log-on;
+      // onEvent('join' | 'leave', session) feeds the logbook.
+      this.policy = opts.policy || null;
+      this.onEvent = opts.onEvent || (() => {});
     }
     connect(send) { const s = new Session(this, this.nextId++, send); this.sessions.set(s.id, s); return s; }
     addSource(src) { this.sources.push(src); src.attach(this); return src; }
@@ -558,7 +564,7 @@
           if (p.handoff === s.callsign) p.handoff = null;
         }
       }
-      if (s.callsign) { this.log(s.callsign + ' disconnected'); this.broadcast({ t: 'left', callsign: s.callsign }); }
+      if (s.callsign) { this.log(s.callsign + ' disconnected'); this.broadcast({ t: 'left', callsign: s.callsign }); if (!s.isBot) this.onEvent('leave', s); }
     }
 
     _hello(s, m) {
@@ -571,16 +577,19 @@
       // Simulated traffic runs inside the server, so it never needs a password.
       if (!s.isBot && this.password && pw !== this.password && !(role === 'atc' && this.atcPassword && pw === this.atcPassword)) return s.error('Wrong network password.');
       if (!s.isBot && role === 'atc' && this.atcPassword && pw !== this.atcPassword) return s.error('Controller positions need the ATC password.');
+      let fac = null;
       if (role === 'atc') {
-        const fac = this.sector.facilities.find(f => f.id === m.facility);
+        fac = this.sector.facilities.find(f => f.id === m.facility);
         if (!fac) return s.error('Unknown ATC position ' + m.facility + '.');
-        s.facility = fac; s.freq = fac.freq;
       }
-      s.role = role; s.callsign = cs;
+      if (this.policy && !s.isBot) { const why = this.policy(s, role, m, fac); if (why) return s.error(why); }
+      if (fac) { s.facility = fac; s.freq = fac.freq; }
+      s.role = role; s.callsign = cs; s.joinedAt = this.now();
       if (role === 'pilot') { s.type = String(m.aircraft || 'ZZZZ').toUpperCase().slice(0, 4); s.squawk = '2000'; s.freq = this.sector.unicom; }
       s.send({ t: 'welcome', id: s.id, callsign: cs, role, freq: s.freq, facility: s.facility && s.facility.id, version: VERSION, map: { id: this.sector.id, name: this.sector.name, rev: this.sector.overlayRev || 0 }, runways: this.runwayConfig(), atis: s.isBot ? [] : this.atisList() });
       this.log(cs + ' connected as ' + role + (s.facility ? ' (' + s.facility.id + ' ' + s.freq + ')' : ''));
       if (role === 'atc') this.radio('SERVER', s.freq, s.facility.name + ' is now online on ' + s.freq + '.', true);
+      if (!s.isBot) this.onEvent('join', s);
     }
 
     _target(atc, m) {
@@ -721,6 +730,27 @@
       next.send({ t: 'handoff', from: atc.callsign, callsign: t.callsign });
     }
 
+    // ------------------------------------------------ supervisors
+    isSupervisor(s) { return !!(s.member && (s.member.role === 'supervisor' || s.member.role === 'admin')); }
+    _kick(s, m) {
+      if (!this.isSupervisor(s)) return s.error('Only supervisors can disconnect people.');
+      const t = this.byCallsign(String(m.callsign || '').toUpperCase());
+      if (!t || t.isBot) return s.error((m.callsign || 'That callsign') + ' is not connected.');
+      const reason = String(m.reason || 'no reason given').slice(0, 120);
+      t.send({ t: 'error', text: 'You were disconnected by a supervisor (' + s.callsign + '): ' + reason, kicked: true });
+      this.log(s.callsign + ' kicked ' + t.callsign + ': ' + reason);
+      this.onEvent('kick', t, { by: s, reason });
+      t.close();
+      s.send({ t: 'msg', from: 'SERVER', text: t.callsign + ' was disconnected.', system: true, at: this.now() });
+    }
+    _broadcastMsg(s, m) {
+      if (!this.isSupervisor(s)) return s.error('Only supervisors can message everyone.');
+      const text = String(m.text || '').replace(/[<>]/g, '').trim().slice(0, 240);
+      if (!text) return;
+      const out = { t: 'msg', from: 'SUPERVISOR ' + s.callsign, text, system: true, broadcast: true, at: this.now() };
+      for (const o of this.sessions.values()) if (!o.isBot) o.send(out);
+    }
+
     // ------------------------------------------------ pilot requests
     _req(s, m) {
       if (s.role !== 'pilot') return s.error('Only pilots send requests.');
@@ -834,7 +864,7 @@
 
     snapshot() {
       return this.pilots().map(p => ({
-        cs: p.callsign, type: p.type, sq: p.squawk, freq: p.freq, bot: p.isBot,
+        cs: p.callsign, type: p.type, sq: p.squawk, freq: p.freq, bot: p.isBot, member: p.member ? p.member.id : null,
         lat: +p.pos.lat.toFixed(6), lon: +p.pos.lon.toFixed(6), alt: p.pos.alt, hdg: p.pos.hdg, gs: p.pos.gs, vs: p.pos.vs,
         onGround: p.pos.onGround, pitch: p.pos.pitch, bank: p.pos.bank,
         fp: p.fp, owner: p.owner, handoff: p.handoff, cleared: p.cleared, proc: p.procName || null, rwy: p.rwy || null,
@@ -847,7 +877,7 @@
       for (const src of this.sources) src.tick(dt);
       if ((this.atisCheck = (this.atisCheck || 0) - dt) <= 0) { this.atisCheck = 10; this.updateAtis(); }
       const traffic = this.snapshot();
-      const atc = this.controllers().map(c => ({ cs: c.callsign, freq: c.freq, facility: c.facility.id, name: c.facility.name }));
+      const atc = this.controllers().map(c => ({ cs: c.callsign, freq: c.freq, facility: c.facility.id, name: c.facility.name, member: c.member ? { id: c.member.id, name: c.member.name, rating: c.member.rating } : null }));
       for (const s of this.sessions.values()) {
         if (s.isBot || !s.role) continue;
         if (s.role === 'pilot') {

@@ -8,6 +8,7 @@
  *   AIRWAVE_EDITOR_PASSWORD   password for the sector editor (defaults to the ATC password)
  *   GITHUB_TOKEN              lets the server save editor changes to the GitHub repo (contents: write)
  *   GITHUB_REPO               owner/repo to save to (on Render this defaults to the deployed repo)
+ *   DATABASE_URL, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, PUBLIC_URL   member accounts (see server/accounts.js)
  * Serves the ATC scope at http://localhost:<port>/ and the network at ws://localhost:<port>/ws
  */
 'use strict';
@@ -16,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 const Airwave = require('../shared/airwave-core.js');
+const { Accounts } = require('./accounts');
 
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf('--' + name); return i >= 0 ? args[i + 1] : def; };
@@ -71,7 +73,11 @@ const serializeMap = m => JSON.stringify(m, (k, v) => (k === 'fixIndex' || k ===
 mapJson = serializeMap(map);
 const BOTS = Number(opt('bots', process.env.AIRWAVE_BOTS != null && process.env.AIRWAVE_BOTS !== '' ? process.env.AIRWAVE_BOTS : -1));
 
-const hub = new Airwave.Hub({ sector: map, log, password: PASSWORD, atcPassword: ATC_PASSWORD });
+// Member accounts (Discord sign-in). Once on, controllers log on with their rating instead of the ATC password.
+const accounts = new Accounts({ log });
+const hub = new Airwave.Hub({ sector: map, log, password: PASSWORD, atcPassword: accounts.enabled ? '' : ATC_PASSWORD,
+  policy: (s, role, m, fac) => accounts.policy(s, role, m, fac), onEvent: (type, s, extra) => accounts.onEvent(type, s, extra) });
+accounts.hub = hub;
 function useOverlay(ov, why) {
   overlay = ov;
   map = attachLayouts(Airwave.registerMap(Airwave.applyOverlay(baseMap, ov)));
@@ -144,7 +150,11 @@ const isLocal = req => /^(::1|127\.|::ffff:127\.)/.test(req.socket.remoteAddress
 async function handleSave(req, res) {
   let body;
   try { body = JSON.parse(await readBody(req, MAX_OVERLAY_BYTES)); } catch (e) { return json(res, { error: e.message === 'too large' ? 'The edit is too big to save.' : 'The edit could not be read.' }, 400); }
-  if (EDITOR_PASSWORD ? body.password !== EDITOR_PASSWORD : !isLocal(req)) return json(res, { error: EDITOR_PASSWORD ? 'Wrong editor password.' : 'Editing is off on this server: set AIRWAVE_EDITOR_PASSWORD or AIRWAVE_ATC_PASSWORD.' }, 403);
+  // Signed-in staff (mentor, supervisor, admin) can save without the password.
+  const staff = accounts.enabled ? await accounts.memberFromReq(req) : null;
+  const isStaff = staff && ['mentor', 'supervisor', 'admin'].includes(staff.role);
+  if (isStaff) body.by = staff.name + ' (' + staff.id + ')';
+  else if (EDITOR_PASSWORD ? body.password !== EDITOR_PASSWORD : !isLocal(req)) return json(res, { error: EDITOR_PASSWORD ? 'Wrong editor password.' : 'Editing is off on this server: set AIRWAVE_EDITOR_PASSWORD or AIRWAVE_ATC_PASSWORD.' }, 403);
   const rev = overlay ? overlay.rev || 0 : 0;
   if ((body.baseRev || 0) !== rev) return json(res, { error: 'Someone saved changes after you opened the editor. Reload the editor to get them, then redo your change.', rev }, 409);
   const problem = checkOverlay(body.overlay);
@@ -200,6 +210,17 @@ const json = (res, body, code = 200) => { res.writeHead(code, Object.assign({ 'c
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
+  if (accounts.handle(req, res, url)) return;
+  // Leaflet for the live map, served from here rather than a CDN.
+  const vend = p.match(/^\/vendor\/leaflet\/((?:images\/)?[a-z0-9-]+\.(js|css|png))$/);
+  if (vend) {
+    const file = path.join(ROOT, 'node_modules', 'leaflet', 'dist', vend[1]);
+    if (!fs.existsSync(file)) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { 'content-type': { js: 'text/javascript', css: 'text/css', png: 'image/png' }[vend[2]] + (vend[2] === 'png' ? '' : '; charset=utf-8'), 'cache-control': 'public, max-age=86400' });
+    return fs.createReadStream(file).pipe(res);
+  }
+  if (p === '/map') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return fs.createReadStream(path.join(ROOT, 'web', 'map.html')).pipe(res); }
+  if (p === '/api/online') return json(res, onlineNow());
   if (p === '/' || p === '/index.html') {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     return res.end(scopePage());
@@ -231,7 +252,7 @@ const server = http.createServer((req, res) => {
   if (p === '/healthz') return json(res, { ok: true });
   if (p === '/status') {
     return json(res, {
-      version: Airwave.VERSION, map: map.id, mapRev: overlay ? overlay.rev || 0 : 0,
+      version: Airwave.VERSION, map: map.id, mapRev: overlay ? overlay.rev || 0 : 0, accounts: accounts.enabled, storage: accounts.store.kind,
       pilots: hub.pilots().map(s => s.callsign),
       controllers: hub.controllers().map(c => ({ callsign: c.callsign, freq: c.freq })),
       layouts: layoutList(),
@@ -243,9 +264,11 @@ const server = http.createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_MSG_BYTES });
-wss.on('connection', ws => {
+wss.on('connection', (ws, req) => {
   if (wss.clients.size > MAX_CLIENTS) { ws.close(1013, 'Server full'); return; }
   const session = hub.connect(m => { if (ws.readyState === 1) ws.send(JSON.stringify(m)); });
+  // Messages are handled in order; the first hello waits while the member is looked up (browser cookie or Airwave Pilot key).
+  let chain = Promise.resolve();
   let windowStart = Date.now(), count = 0;
   ws.alive = true;
   ws.on('pong', () => { ws.alive = true; });
@@ -255,9 +278,13 @@ wss.on('connection', ws => {
     if (now - windowStart > 1000) { windowStart = now; count = 0; }
     if (++count > MAX_MSGS_PER_SEC) return session.error('Too many messages. Slow down.');
     let m; try { m = JSON.parse(data); } catch { return session.error('Messages must be JSON.'); }
-    session.receive(m);
+    if (m && m.t === 'hello' && !session.role && accounts.enabled) {
+      chain = chain.then(() => accounts.identify(session, req, m)).catch(() => {}).then(() => session.receive(m));
+      return;
+    }
+    chain = chain.then(() => session.receive(m));
   });
-  ws.on('close', () => session.close());
+  ws.on('close', () => { chain = chain.then(() => session.close()); });
   ws.on('error', () => session.close());
 });
 // Hosting proxies drop quiet connections, and dead clients should be cleaned up: ping every 25 s.
@@ -271,6 +298,18 @@ setInterval(() => {
 
 setInterval(() => hub.tick(TICK_MS / 1000), TICK_MS);
 
+// Public live data for the map page (who is flying and controlling). No private details.
+function onlineNow() {
+  const pilots = hub.snapshot().map(a => ({ cs: a.cs, type: a.type, lat: a.lat, lon: a.lon, alt: a.alt, hdg: a.hdg, gs: a.gs, onGround: a.onGround,
+    dep: a.fp && a.fp.dep, arr: a.fp && a.fp.arr, bot: !!a.bot, phase: a.phase || null, member: a.member || null }));
+  const atc = hub.controllers().map(c => ({ cs: c.callsign, freq: c.freq, facility: c.facility.id, kind: c.facility.kind, name: c.facility.name,
+    airport: c.facility.airport || null, covers: c.facility.covers || null, area: c.facility.area ? { lat: c.facility.area.lat, lon: c.facility.area.lon, radius: c.facility.area.radius } : null,
+    member: c.member ? { id: c.member.id, name: c.member.name, rating: c.member.rating } : null, since: c.joinedAt || null }));
+  return { time: Date.now(), version: Airwave.VERSION, map: map.id, pilots, atc, atis: hub.atisList().map(a => ({ icao: a.icao, freq: a.freq, letter: a.letter })),
+    counts: { pilots: pilots.filter(p => !p.bot).length, simulated: pilots.filter(p => p.bot).length, atc: atc.length } };
+}
+
+accounts.init();
 server.listen(PORT, () => {
   log(`Airwave ${Airwave.VERSION} running, map: ${map.name}${overlay ? ' + edits r' + overlay.rev : ''}`);
   log(`ATC scope:  http://localhost:${PORT}/`);

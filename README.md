@@ -185,6 +185,46 @@ so it works on the server and GitHub Pages scope but not in offline copies.
 departures 03R), then **Apply**. Every controller sees the change, STARs, approaches and SIDs on the scope follow it, and simulated traffic
 uses those runways. A protocol message does the same: `{"t":"runways","icao":"LGAV","arr":["03L","03R"],"dep":["03R"]}`.
 
+## Member accounts, ratings and the live map
+
+Members sign in with Discord. Once accounts are on:
+- controllers need a rating for the position they staff;
+- everyone gets a logbook of flights and ATC sessions;
+- staff can manage the network.
+
+| Page | What it is |
+| --- | --- |
+| `/me` | Your profile: Airwave ID, ATC rating, hours flying and controlling, logbook, connection key for Airwave Pilot |
+| `/admin` | Staff: members, ratings, roles, bans, audit trail |
+| `/map` | Public live map: pilots, simulated traffic, controllers (staffed sectors shaded), ATIS |
+
+**Ratings:**
+- OBS: observer only;
+- S1: Delivery and Ground;
+- S2: adds Tower;
+- S3: adds Approach, Departure and Arrival;
+- C1: adds area control;
+- I1: instructor.
+
+**Roles:**
+- mentors give ratings up to S3;
+- supervisors can disconnect people (scope: selected aircraft → Disconnect), ban, and send `.ALL message` to everyone;
+- admins can do everything.
+
+The **first account created becomes admin**. Guests can still fly unless `AIRWAVE_REQUIRE_LOGIN=1`. Controllers always need an account, and the old ATC password no longer applies.
+In Airwave Pilot, **Sign in with Discord** links the app to your account. A connection key from `/me` works too.
+
+Setup on Render (Environment):
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | Postgres connection string, e.g. a free [Neon](https://neon.tech) database (Frankfurt) |
+| `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | From a Discord application (discord.com/developers → OAuth2) |
+| `PUBLIC_URL` | `https://<your-service>.onrender.com`; the Discord redirect is `PUBLIC_URL/auth/discord/callback` |
+
+Without `DATABASE_URL`, members are kept in memory and lost on restart, which is fine for testing.
+Secrets are stored only as hashes. `node tools/test-accounts.js` tests everything; with `TEST_DATABASE_URL` it runs against Postgres.
+
 ## Radio: clearances, requests, voice and ATIS
 
 **Controllers** (selected aircraft panel, or the command line):
@@ -261,6 +301,7 @@ node tools/test-layouts.js       OpenStreetMap layout conversion
 node tools/test-editor.js        sector editor saves, map reloads and runway changes (starts its own server)
 node tools/test-panel.js         in-sim panels: X-Plane link, MSFS panel package, add-on installer
 node tools/test-ground.js        ground traffic, controller exchanges, requests, ATIS and voice relay
+node tools/test-accounts.js      member accounts, ratings, kick, ban, logbook (TEST_DATABASE_URL for Postgres)
 ```
 
 ## Protocol

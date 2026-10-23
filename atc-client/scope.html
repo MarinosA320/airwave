@@ -209,6 +209,10 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
       <span class="status" id="status"><i></i><span id="statusText">Not connected</span></span>
       <span class="pos-links"><a class="linkbtn" id="editorLink" href="/editor" target="_blank" rel="noopener" hidden>Edit map</a><button class="linkbtn" id="toggleConnect">Connection</button></span>
     </div>
+    <div class="pos" id="acctBar" hidden>
+      <span id="acctText" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      <span class="pos-links"><a class="linkbtn" href="/map" target="_blank" rel="noopener">Map</a><a class="linkbtn" id="acctLink" href="/me" target="_blank" rel="noopener">Member</a></span>
+    </div>
 
     <div class="scroll">
       <section id="connectPanel">
@@ -338,7 +342,10 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     const area = map.facilities.filter(f => f.kind === 'CTR');
     const byAp = new Map();
     map.facilities.filter(f => f.kind !== 'CTR').forEach(f => { if (!byAp.has(f.airport)) byAp.set(f.airport, []); byAp.get(f.airport).push(f); });
-    const opt = f => '<option value="' + esc(f.id) + '">' + esc(f.id + '  ' + f.freq + '  ' + f.name) + '</option>';
+    // With member accounts, positions above your rating are shown with the rating they need.
+    const NEEDS = { DEL: 1, GND: 1, TWR: 2, F_APP: 3, DEP: 3, APP: 3, CTR: 4 }, R = ['OBS', 'S1', 'S2', 'S3', 'C1', 'I1'];
+    const need = f => (st.account && st.account.accounts && (!st.account.member || st.account.member.atcRating < (NEEDS[f.kind] || 4))) ? '  (needs ' + R[NEEDS[f.kind] || 4] + ')' : '';
+    const opt = f => '<option value="' + esc(f.id) + '">' + esc(f.id + '  ' + f.freq + '  ' + f.name + need(f)) + '</option>';
     let html = '<optgroup label="Area control">' + area.map(opt).join('') + '</optgroup>';
     [...byAp.keys()].sort().forEach(icao => {
       const ap = map.airports.find(a => a.icao === icao);
@@ -373,6 +380,21 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
         '<label><input type="checkbox" data-k="arr" value="' + esc(id) + '"' + (arr.includes(id) ? ' checked' : '') + '> ARR</label>' +
         '<label><input type="checkbox" data-k="dep" value="' + esc(id) + '"' + (dep.includes(id) ? ' checked' : '') + '> DEP</label>').join('');
   }
+  // Member account (only when the scope is opened from an Airwave server)
+  function loadAccount() {
+    if (!window.AIRWAVE_SERVED) return;
+    fetch('/api/me').then(r => r.json()).then(d => {
+      st.account = d;
+      if (!d.accounts) return;
+      $('acctBar').hidden = false;
+      const m = d.member;
+      $('acctText').innerHTML = m ? '<b>' + esc(m.name) + '</b> · ' + esc(m.rating) + (m.role !== 'member' ? ' · ' + esc(m.role) : '')
+        : 'Not signed in · <a class="linkbtn" style="display:inline" href="' + (d.discord ? '/auth/discord?next=/' : '/me') + '">Sign in with Discord</a>';
+      if (st.map) fillPositions(st.map, $('facility').value);
+    }).catch(() => {});
+  }
+  const isSup = () => !!(st.account && st.account.member && ['supervisor', 'admin'].includes(st.account.member.role));
+
   // ATIS for the airport chosen in the Runways panel; remarks you set are added to it (and give a new letter).
   function renderAtis() {
     const a = st.atis.get($('rwyAp').value);
@@ -620,6 +642,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
   function runCommand(line) {
     const toks = line.trim().toUpperCase().split(/\s+/).filter(Boolean);
     if (!toks.length) return;
+    if (toks[0] === '.ALL') { const text = line.trim().slice(4).trim(); if (!text) return sys('Type the message after .ALL', 'err'); send({ t: 'broadcast', text }); return; }
     let cs = st.selected;
     const maybe = resolveCs(toks[0]);
     if (maybe && !RESERVED.test(toks[0])) { cs = maybe; toks.shift(); }
@@ -843,6 +866,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
         '<datalist id="taxiwayList">' + groundOptions(groundAp).via.map(v => opt(v)).join('') + '</datalist>' +
         '</details>' : '') +
       '<div class="ctl" style="margin-top:8px"><span>Say</span><input id="iSay" maxlength="200" placeholder="free text to ' + esc(a.cs) + '"><button class="btn" data-act="say">Send</button></div>' +
+      (isSup() && !a.bot ? '<div class="ctl"><span>Supervisor</span><input id="iKick" maxlength="120" placeholder="reason to disconnect"><button class="btn warn" data-act="kick">Disconnect</button></div>' : '') +
       '<div class="actions">' + ownButton(a) +
       '<button class="btn" data-act="res">Own nav</button>' +
       (others.length ? '<select class="btn" id="iHo" aria-label="Hand off to"><option value="">Hand off to…</option>' + others.map(c => '<option>' + esc(c.cs) + '</option>').join('') + '</select>' : '') +
@@ -893,6 +917,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
     if (act === 'hs') send({ t: 'instr', to: cs, kind: 'holdshort', value: rw });
     if (act === 'cross') send({ t: 'instr', to: cs, kind: 'cross', value: rw });
     if (act === 'xrwy') send({ t: 'instr', to: cs, kind: 'rwy', value: rw });
+    if (act === 'kick') { const r = $('iKick').value.trim(); if (!r) return sys('Give a reason first.', 'err'); send({ t: 'kick', callsign: cs, reason: r }); }
     if (act === 'say') { const v = $('iSay').value.trim(); if (!v) return sys('Type the message first.', 'err'); send({ t: 'instr', to: cs, kind: 'text', value: v }); $('iSay').value = ''; }
     if (act === 'res') send({ t: 'instr', to: cs, kind: 'resume' });
     if (act === 'own') send({ t: b.dataset.v === 'rel' ? 'release' : 'assume', to: cs });
@@ -1443,7 +1468,7 @@ kbd { font-family: var(--f-data); font-size: 11.5px; border: 1px solid var(--lin
   st.map = A.MAPS[$('mapSel').value];
   fillPositions(st.map, store.get('facility', ''));
   $('fixList').innerHTML = [...st.map.fixIndex.keys()].sort().map(id => '<option value="' + esc(id) + '"></option>').join('');
-  fillRwyAirports(); renderRunways(true);
+  fillRwyAirports(); renderRunways(true); loadAccount();
   lastFac = $('facility').value;
   $('callsign').value = store.get('callsign', $('facility').value);
   if (onLocalServer) $('url').value = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';

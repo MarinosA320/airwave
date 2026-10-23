@@ -12,12 +12,12 @@ const { TrafficManager } = require('./lib/traffic');
 const { ModelMatcher } = require('./lib/matcher');
 const { REQUEST_GROUPS } = require('./lib/requests');
 
-const VERSION = '0.6.0';
+const VERSION = '0.7.0';
 const UI_PORT = Number(process.env.AIRWAVE_PILOT_PORT || 8090);
 const CONFIG_FILE = process.env.AIRWAVE_PILOT_CONFIG || path.join(__dirname, 'config.json');
 const RULES_FILE = path.join(__dirname, 'matching-rules.json');
 const DEFAULTS = {
-  server: process.env.AIRWAVE_SERVER || 'wss://airwave-lwhv.onrender.com/ws', password: '', callsign: '', name: '', type: 'A20N', sim: 'msfs', xplaneHost: '127.0.0.1', stand: '', pttSim: '',
+  server: process.env.AIRWAVE_SERVER || 'wss://airwave-lwhv.onrender.com/ws', password: '', callsign: '', name: '', type: 'A20N', sim: 'msfs', xplaneHost: '127.0.0.1', stand: '', pttSim: '', key: '', member: null,
   autoTune: true, fp: { dep: '', arr: '', route: '', cruise: 36000 }
 };
 
@@ -84,7 +84,7 @@ function connect() {
   try { ws = new WebSocket(config.server); } catch (e) { state.net = 'offline'; state.netText = 'Bad server address: ' + config.server; return pushState(); }
   ws.on('open', () => {
     clearTimeout(slow);
-    send({ t: 'hello', role: 'pilot', callsign: cs, aircraft: config.type, name: config.name, password: config.password || '', client: 'Airwave Pilot ' + VERSION });
+    send({ t: 'hello', role: 'pilot', callsign: cs, aircraft: config.type, name: config.name, password: config.password || '', key: config.key || undefined, client: 'Airwave Pilot ' + VERSION });
     sendFlightPlan();
   });
   ws.on('message', d => { let m; try { m = JSON.parse(d); } catch (e) { return; } onServer(m); });
@@ -138,7 +138,7 @@ function onServer(m) {
     case 'voice': toUi(m); break; // someone talking on your frequency: played by the Airwave Pilot window
     case 'error':
       log('Server: ' + m.text);
-      if (/in use|Callsign must|password/i.test(m.text)) { state.wantOnline = false; state.netText = m.text; }
+      if (/in use|Callsign must|password|Sign in|banned|disconnected by|sign-in/i.test(m.text)) { state.wantOnline = false; state.netText = m.text; }
       pushState(); break;
   }
 }
@@ -151,7 +151,7 @@ setInterval(() => {
 // ------------------------------------------------------------ local control panel
 function snapshot() {
   return {
-    t: 'state', version: VERSION, config: Object.assign({}, config, { password: config.password ? '••••••' : '' }), net: state.net, netText: state.netText, sim: state.sim, simText: state.simText,
+    t: 'state', version: VERSION, config: Object.assign({}, config, { password: config.password ? '••••••' : '', key: config.key ? 'set' : '' }), webBase: webBase(), net: state.net, netText: state.netText, sim: state.sim, simText: state.simText,
     plugin: state.plugin ? { models: state.plugin.models || 0 } : null, own: state.own, freq: state.freq, atc: state.atc,
     lastInstr: state.lastInstr, wantOnline: state.wantOnline, traffic: traffic.list().length,
     atis: [config.fp.dep, config.fp.arr].filter((x, i, a) => x && a.indexOf(x) === i).map(icao => state.atis[icao] || { icao, none: true }),
@@ -218,6 +218,8 @@ function onUi(m) {
       toUi({ t: 'ptt', on: !!m.on });
       return; // no state push needed
     }
+    case 'signout': config.key = ''; config.member = null; saveConfig(); log('Signed out of Airwave'); if (state.wantOnline) connect(); break;
+    case 'usekey': if (!linkAccount({ key: m.key })) log('That key does not look right. Keys start with aw_.'); break;
     case 'installAddons': {
       const report = require('./install-addons').installAddons();
       report.forEach(r => log('Sim panels: ' + r.sim + ': ' + r.text));
@@ -236,15 +238,47 @@ function onUi(m) {
   pushState(); pushPanel();
 }
 
+// The server's web address (for signing in), from its WebSocket address: wss://host/ws -> https://host
+function webBase() { try { const u = new URL(config.server); return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host; } catch (e) { return ''; } }
+// Sign-in: the Airwave website sends the browser back to /linked#key=... on this computer.
+function linkAccount(b) {
+  const key = String(b.key || '').trim();
+  if (!/^aw_[A-Za-z0-9_-]{20,64}$/.test(key)) return false;
+  config.key = key;
+  config.member = b.id ? { id: Number(b.id) || null, name: String(b.name || '').slice(0, 40), rating: String(b.rating || '').slice(0, 4) } : config.member;
+  saveConfig();
+  log('Signed in to Airwave' + (config.member && config.member.name ? ' as ' + config.member.name + ' (' + config.member.id + ')' : ''));
+  if (state.wantOnline) connect();
+  pushState();
+  return true;
+}
+const LINKED_PAGE = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Airwave Pilot</title>' +
+  '<body style="background:#0b1215;color:#d6e2e5;font-family:system-ui,sans-serif;padding:40px;max-width:560px;margin:auto"><h1 style="font-size:20px;letter-spacing:.14em">AIRWAVE PILOT</h1><p id="t">Linking…</p>' +
+  '<script>var q=new URLSearchParams(location.hash.slice(1));history.replaceState(null,"","/linked");' +
+  'fetch("/api/link",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({key:q.get("key"),id:q.get("id"),name:q.get("name"),rating:q.get("rating")})})' +
+  '.then(function(r){document.getElementById("t").textContent=r.ok?"Signed in as "+(q.get("name")||"")+". You can close this tab and go back to Airwave Pilot.":"That sign-in did not work. Try again from Airwave Pilot.";if(r.ok)setTimeout(function(){location.href="/"},1500);});</script></body>';
 const UI_FILE = path.join(__dirname, 'ui.html');
 const PANEL_FILE = path.join(__dirname, 'panel.html');
 const PANEL_COMMANDS = ['connect', 'disconnect', 'tune', 'send', 'readback', 'req'];
+// Only Airwave Pilot's own pages and the in-sim panel (MSFS serves it from coui://) may use the local API,
+// so other websites open in your browser cannot drive Airwave Pilot.
+const localOrigin = o => !o || o === 'null' || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o) || /^coui:\/\//.test(o);
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  const cors = { 'access-control-allow-origin': '*', 'cache-control': 'no-store' };
+  if (!localOrigin(req.headers.origin)) { res.writeHead(403); return res.end(); }
+  const cors = { 'access-control-allow-origin': req.headers.origin || '*', 'cache-control': 'no-store', vary: 'origin' };
   if (url.pathname === '/' || url.pathname === '/index.html') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return fs.createReadStream(UI_FILE).pipe(res); }
   // The in-sim panel: a small page the MSFS toolbar panel shows, polling /api/panel (the sim's browser is old, so no WebSockets)
   if (url.pathname === '/panel') { res.writeHead(200, Object.assign({ 'content-type': 'text/html; charset=utf-8' }, cors)); return fs.createReadStream(PANEL_FILE).pipe(res); }
+  if (url.pathname === '/linked') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); return res.end(LINKED_PAGE); }
+  if (url.pathname === '/api/link' && req.method === 'POST') {
+    // Only pages from this computer's Airwave Pilot may link (no cross-site requests).
+    const origin = req.headers.origin || '';
+    if (origin && !/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) { res.writeHead(403); return res.end(); }
+    let body = ''; req.on('data', c => { body += c; if (body.length > 2000) req.destroy(); });
+    req.on('end', () => { let b = {}; try { b = JSON.parse(body); } catch (e) { /* bad */ } const ok = linkAccount(b); res.writeHead(ok ? 200 : 400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok })); });
+    return;
+  }
   if (url.pathname === '/voice.js') { res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' }); return fs.createReadStream(path.join(__dirname, '..', 'shared', 'airwave-voice.js')).pipe(res); }
   if (url.pathname === '/api/requests') { res.writeHead(200, Object.assign({ 'content-type': 'application/json' }, cors)); return res.end(JSON.stringify(REQUEST_GROUPS)); }
   if (url.pathname === '/api/panel') { res.writeHead(200, Object.assign({ 'content-type': 'application/json' }, cors)); return res.end(JSON.stringify(panelState(Number(url.searchParams.get('since')) || 0))); }
@@ -261,7 +295,7 @@ const server = http.createServer((req, res) => {
   }
   res.writeHead(404); res.end();
 });
-const wss = new WebSocket.Server({ server, path: '/ui' });
+const wss = new WebSocket.Server({ server, path: '/ui', verifyClient: info => localOrigin(info.origin) });
 wss.on('connection', c => {
   uiClients.add(c);
   c.send(JSON.stringify(snapshot()));

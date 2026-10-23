@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Airwave · Live map</title>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+:root { --bg: #0b1215; --panel: #11191d; --panel-2: #172227; --line: #24333a; --text: #d6e2e5; --muted: #7d939a; --mine: #7fd4f0; --amber: #f0bf4f; --ok: #72d39d; --sim: #8a9ba0;
+  --f-ui: 'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif; --f-data: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--f-ui); display: grid; grid-template-rows: auto 1fr; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { margin: 0; font-size: 20px; letter-spacing: .14em; } header h1 span { color: var(--mine); }
+nav { display: flex; gap: 16px; } nav a { color: var(--muted); text-decoration: none; } nav a.on, nav a:hover { color: var(--text); }
+.counts { display: flex; gap: 14px; font-family: var(--f-data); font-size: 13px; color: var(--muted); } .counts b { color: var(--text); font-weight: 500; }
+.grow { flex: 1; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
+#map { min-height: 0; background: #0b1215; }
+aside { overflow-y: auto; border-left: 1px solid var(--line); background: var(--panel); }
+aside section { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+aside h2 { margin: 0 0 8px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; }
+.row { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; cursor: pointer; }
+.row:last-child { border-bottom: 0; }
+.row .cs { font-family: var(--f-data); font-weight: 600; } .row .f { font-family: var(--f-data); color: var(--mine); }
+.row .sub { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+.row.sim .cs { color: var(--sim); font-weight: 400; }
+.empty { color: var(--muted); font-size: 14px; }
+label.tog { display: flex; gap: 6px; align-items: center; font-size: 14px; color: var(--muted); cursor: pointer; }
+.plane { width: 22px; height: 22px; }
+.leaflet-container { font-family: var(--f-ui); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 0; }
+.leaflet-popup-content { font-size: 14px; line-height: 1.45; margin: 10px 12px; }
+.leaflet-popup-content b { font-family: var(--f-data); }
+.apbadge { font-family: var(--f-data); font-size: 11px; font-weight: 600; background: var(--panel); border: 1px solid var(--ok); color: var(--ok); padding: 1px 4px; white-space: nowrap; }
+.leaflet-control-attribution { background: rgba(11,18,21,.75) !important; color: var(--muted) !important; } .leaflet-control-attribution a { color: var(--muted) !important; }
+@media (max-width: 800px) { .wrap { grid-template-columns: 1fr; grid-template-rows: 60vh auto; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>AIR<span>WAVE</span></h1>
+  <nav><a href="/">Scope</a><a href="/map" class="on">Live map</a><a href="/me">Member</a></nav>
+  <span class="grow"></span>
+  <div class="counts"><span><b id="cP">0</b> pilots</span><span><b id="cA">0</b> ATC</span><span><b id="cS">0</b> simulated</span></div>
+</header>
+<div class="wrap">
+  <div id="map"></div>
+  <aside>
+    <section><h2><span>Controllers online</span></h2><div id="atc"></div></section>
+    <section><h2><span>ATIS</span></h2><div id="atis"></div></section>
+    <section><h2><span>Pilots</span><label class="tog"><input type="checkbox" id="showSim" checked> simulated</label></h2><div id="pilots"></div></section>
+  </aside>
+</div>
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const map = L.map('map', { zoomControl: true, worldCopyJump: true }).setView([38.3, 24], 6);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 15, subdomains: 'abcd',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>' }).addTo(map);
+  const sectorLayer = L.layerGroup().addTo(map), apLayer = L.layerGroup().addTo(map), planeLayer = L.layerGroup().addTo(map);
+  let mapData = null, planes = new Map(), last = null;
+  try { $('showSim').checked = localStorage.getItem('aw.map.sim') !== '0'; } catch (e) { /* storage off */ }
+  $('showSim').onchange = () => { try { localStorage.setItem('aw.map.sim', $('showSim').checked ? '1' : '0'); } catch (e) { /* off */ } if (last) render(last); };
+  fetch('/map.json').then(r => r.json()).then(m => { mapData = m; if (last) render(last); }).catch(() => {});
+
+  const icon = (hdg, color) => L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11],
+    html: '<svg class="plane" viewBox="0 0 24 24" style="transform:rotate(' + hdg + 'deg)"><path fill="' + color + '" d="M12 2c.6 0 1 .9 1 2v5l8 4.5v2l-8-2.5v5l2.5 2v1.5L12 20.5 8.5 21.5V20l2.5-2v-5l-8 2.5v-2L11 9V4c0-1.1.4-2 1-2z"/></svg>' });
+  const KIND = { DEL: 'D', GND: 'G', TWR: 'T', APP: 'A', DEP: 'A', F_APP: 'A' };
+  const ft = a => a > 6000 ? 'FL' + String(Math.round(a / 100)).padStart(3, '0') : Math.round(a / 100) * 100 + ' ft';
+  function render(d) {
+    last = d;
+    $('cP').textContent = d.counts.pilots; $('cA').textContent = d.counts.atc; $('cS').textContent = d.counts.simulated;
+    const showSim = $('showSim').checked;
+    // Area control: shade the sectors that are staffed.
+    sectorLayer.clearLayers(); apLayer.clearLayers();
+    if (mapData) {
+      for (const c of d.atc.filter(c => c.covers)) for (const id of c.covers) {
+        const z = mapData.sectors.find(s => s.id === id); if (!z) continue;
+        L.polygon(z.polygon, { color: '#7fd4f0', weight: 1, fillOpacity: 0.07 }).bindPopup('<b>' + esc(c.cs) + '</b> ' + esc(c.freq) + '<br>' + esc(c.name) + (c.member ? '<br>' + esc(c.member.name) + ' · ' + esc(c.member.rating) : '')).addTo(sectorLayer);
+      }
+      const byAp = new Map();
+      for (const c of d.atc.filter(c => c.airport)) (byAp.get(c.airport) || byAp.set(c.airport, []).get(c.airport)).push(c);
+      for (const [icao, list] of byAp) {
+        const ap = mapData.airports.find(a => a.icao === icao); if (!ap) continue;
+        const letters = [...new Set(list.map(c => KIND[c.kind] || '?'))].join('');
+        L.marker([ap.lat, ap.lon], { icon: L.divIcon({ className: '', iconAnchor: [0, 22], html: '<span class="apbadge">' + esc(icao) + ' ' + letters + '</span>' }) })
+          .bindPopup(list.map(c => '<b>' + esc(c.cs) + '</b> ' + esc(c.freq) + '<br>' + esc(c.name) + (c.member ? ' · ' + esc(c.member.name) + ' (' + esc(c.member.rating) + ')' : '')).join('<hr style="border-color:#24333a">')).addTo(apLayer);
+      }
+    }
+    // Aircraft: move existing markers, add new ones, remove the gone.
+    const seen = new Set();
+    for (const p of d.pilots) {
+      if (p.bot && !showSim) continue;
+      seen.add(p.cs);
+      const color = p.bot ? '#8a9ba0' : '#7fd4f0';
+      const pop = '<b>' + esc(p.cs) + '</b> ' + esc(p.type) + (p.bot ? ' <span style="color:#7d939a">(simulated)</span>' : '') + '<br>' + esc(p.dep || '?') + ' → ' + esc(p.arr || '?') + '<br>' +
+        (p.onGround ? 'on the ground' + (p.phase ? ' · ' + esc(p.phase) : '') : ft(p.alt) + ' · ' + p.gs + ' kt');
+      let mk = planes.get(p.cs);
+      if (!mk) { mk = L.marker([p.lat, p.lon], { icon: icon(p.hdg, color) }).bindPopup(pop).addTo(planeLayer); planes.set(p.cs, mk); }
+      else { mk.setLatLng([p.lat, p.lon]); mk.setIcon(icon(p.hdg, color)); mk.setPopupContent(pop); }
+    }
+    for (const [cs, mk] of planes) if (!seen.has(cs)) { planeLayer.removeLayer(mk); planes.delete(cs); }
+    // Lists
+    $('atc').innerHTML = d.atc.length ? d.atc.sort((a, b) => a.cs.localeCompare(b.cs)).map(c => '<div class="row" data-ap="' + esc(c.airport || '') + '"><span class="cs">' + esc(c.cs) + '</span><span>' + esc(c.name) + '</span><span class="f">' + esc(c.freq) + '</span>' +
+      '<span class="sub">' + (c.member ? esc(c.member.name) + ' · ' + esc(c.member.rating) : 'guest') + (c.since ? ' · online ' + Math.max(1, Math.round((d.time - c.since) / 60000)) + ' min' : '') + '</span></div>').join('') : '<p class="empty">No controllers online right now.</p>';
+    $('atis').innerHTML = d.atis.length ? d.atis.map(a => '<div class="row"><span class="cs">' + esc(a.icao) + '</span><span>information ' + esc(a.letter) + '</span><span class="f">' + esc(a.freq || '') + '</span></div>').join('') : '<p class="empty">No ATIS.</p>';
+    const list = d.pilots.filter(p => showSim || !p.bot).sort((a, b) => (a.bot - b.bot) || a.cs.localeCompare(b.cs));
+    $('pilots').innerHTML = list.length ? list.map(p => '<div class="row' + (p.bot ? ' sim' : '') + '" data-cs="' + esc(p.cs) + '"><span class="cs">' + esc(p.cs) + '</span><span>' + esc(p.dep || '?') + ' → ' + esc(p.arr || '?') + '</span><span>' + esc(p.type) + '</span>' +
+      '<span class="sub">' + (p.onGround ? 'on the ground' : ft(p.alt) + ' · ' + p.gs + ' kt') + '</span></div>').join('') : '<p class="empty">Nobody flying right now.</p>';
+  }
+  $('pilots').addEventListener('click', e => { const r = e.target.closest('[data-cs]'); const mk = r && planes.get(r.dataset.cs); if (mk) { map.setView(mk.getLatLng(), Math.max(map.getZoom(), 9)); mk.openPopup(); } });
+  $('atc').addEventListener('click', e => { const r = e.target.closest('[data-ap]'); const ap = r && mapData && mapData.airports.find(a => a.icao === r.dataset.ap); if (ap) map.setView([ap.lat, ap.lon], 10); });
+  function poll() { fetch('/api/online').then(r => r.json()).then(render).catch(() => {}).finally(() => setTimeout(poll, 10000)); }
+  poll();
+})();
+</script>
+</body>
+</html>

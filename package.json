@@ -18,7 +18,9 @@
   "author": "",
   "license": "UNLICENSED",
   "dependencies": {
+    "leaflet": "^1.9.4",
     "node-simconnect": "4.2.0",
+    "pg": "^8.13.1",
     "ws": "^8.22.0"
   },
   "private": true

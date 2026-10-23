@@ -95,6 +95,12 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
 <main>
   <div class="col">
     <section>
+      <h2>Airwave account</h2>
+      <p class="hint" id="acctText">Not signed in. You can fly as a guest; signing in keeps a logbook of your flights.</p>
+      <div class="quick" style="margin-top:8px"><button class="btn" id="signIn" style="background:#5865f2;border-color:#5865f2;color:#fff">Sign in with Discord</button><button class="btn" id="useKeyBtn">Use a key</button><button class="btn" id="signOut" hidden>Sign out</button></div>
+      <form class="req" id="keyForm" hidden style="margin-top:8px;grid-template-columns:1fr auto"><input id="keyIn" placeholder="aw_… (from your member page)" spellcheck="false" autocomplete="off"><button class="btn">Save</button></form>
+    </section>
+    <section>
       <h2>Your flight</h2>
       <form class="grid" id="cfg" autocomplete="off">
         <div class="seg" role="group" aria-label="Simulator">
@@ -252,6 +258,7 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
 
   function render(s) {
     const first = !st; st = s;
+    renderAccount(s);
     if (first || !editing) fillForm(s.config);
     pill('pNet', s.net, s.net === 'online' ? 'online' : s.net);
     pill('pSim', s.sim, s.simText || '—');
@@ -280,6 +287,12 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
     $('matches').innerHTML = st2 && st2.matches.length ? st2.matches.map(m => '<tr><td>' + esc(m.cs) + '</td><td>' + esc(m.type) + ' ' + esc(m.airline) + '</td><td>' + esc(m.title) + (m.livery ? '<br><span class="hint">' + esc(m.livery) + '</span>' : '') + '</td><td class="q-' + esc(m.quality) + '">' + esc(m.quality) + '</td></tr>').join('')
       : '<tr><td colspan="4" class="hint">' + (s.traffic ? 'Traffic nearby is drawn by the simulator.' : 'No traffic nearby yet.') + '</td></tr>';
   }
+  function renderAccount(s) {
+    const m = s.config.member, on = !!s.config.key;
+    $('acctText').textContent = on ? 'Signed in' + (m && m.name ? ' as ' + m.name + ' (Airwave ID ' + m.id + (m.rating ? ', ATC ' + m.rating : '') + ')' : '') + '. Your flights go into your logbook.' : 'Not signed in. You can fly as a guest; signing in keeps a logbook of your flights.';
+    $('signIn').hidden = on; $('useKeyBtn').hidden = on; $('signOut').hidden = !on;
+    if (on) $('keyForm').hidden = true;
+  }
   function pill(id, cls, text) { $(id).className = 'pill ' + (cls || ''); $(id + 'T').textContent = text; }
   function fillForm(c) {
     ['callsign', 'type', 'server', 'password', 'xplaneHost', 'stand', 'pttSim'].forEach(k => { $(k).value = c[k] || ''; });
@@ -298,9 +311,17 @@ td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top
   document.querySelectorAll('[data-sim]').forEach(b => b.onclick = () => saveForm(b.dataset.sim));
   document.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('focus', () => { editing = true; });
-    inp.addEventListener('blur', () => { editing = false; if (inp.id !== 'txt' && inp.id !== 'reqVal') saveForm(); });
-    inp.addEventListener('change', () => { if (inp.id !== 'txt' && inp.id !== 'reqVal') saveForm(); });
+    inp.addEventListener('blur', () => { editing = false; if (!['txt', 'reqVal', 'keyIn'].includes(inp.id)) saveForm(); });
+    inp.addEventListener('change', () => { if (!['txt', 'reqVal', 'keyIn'].includes(inp.id)) saveForm(); });
   });
+  $('signIn').onclick = () => {
+    if (!st || !st.webBase) return applog('Set the server address first.');
+    saveForm();
+    window.open(st.webBase + '/auth/discord?next=pilot&port=' + (location.port || 8090), '_blank');
+  };
+  $('useKeyBtn').onclick = () => { $('keyForm').hidden = false; $('keyIn').focus(); };
+  $('keyForm').onsubmit = e => { e.preventDefault(); const k = $('keyIn').value.trim(); if (k) send({ t: 'usekey', key: k }); $('keyIn').value = ''; };
+  $('signOut').onclick = () => send({ t: 'signout' });
   $('connectBtn').onclick = () => { saveForm(); send({ t: st && st.wantOnline ? 'disconnect' : 'connect' }); };
   $('atc').onclick = e => { const b = e.target.closest('[data-f]'); if (b) send({ t: 'tune', freq: b.dataset.f }); };
   $('atisList').onclick = e => { const b = e.target.closest('[data-f]'); if (b) send({ t: 'tune', freq: b.dataset.f }); };

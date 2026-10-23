@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Airwave · Member</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+:root { --bg: #0b1215; --panel: #11191d; --panel-2: #172227; --line: #24333a; --text: #d6e2e5; --muted: #7d939a; --mine: #7fd4f0; --amber: #f0bf4f; --alert: #ff6a5a; --ok: #72d39d;
+  --f-ui: 'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif; --f-data: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--f-ui); font-size: 16px; }
+a { color: var(--mine); }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { margin: 0; font-size: 21px; letter-spacing: .14em; }
+header h1 span { color: var(--mine); }
+nav { display: flex; flex-wrap: wrap; gap: 16px; font-size: 15px; }
+nav a { color: var(--muted); text-decoration: none; } nav a:hover, nav a.on { color: var(--text); }
+.grow { flex: 1; }
+main { max-width: 980px; margin: 0 auto; padding: 22px 20px 60px; display: grid; gap: 18px; }
+section { background: var(--panel); border: 1px solid var(--line); padding: 18px 20px; }
+h2 { margin: 0 0 12px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.who { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.who img, .who .ph { width: 64px; height: 64px; border-radius: 50%; background: var(--panel-2); }
+.who .name { font-size: 26px; font-weight: 700; }
+.who .id { font-family: var(--f-data); color: var(--muted); font-size: 14px; }
+.badge { font-family: var(--f-data); font-size: 13px; padding: 2px 8px; border: 1px solid var(--mine); color: var(--mine); }
+.badge.role { border-color: var(--amber); color: var(--amber); }
+.badge.bad { border-color: var(--alert); color: var(--alert); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat b { display: block; font-family: var(--f-data); font-size: 26px; font-weight: 500; }
+.stat span { color: var(--muted); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+.ladder { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.ladder div { border: 1px solid var(--line); padding: 8px 10px; font-size: 14px; color: var(--muted); }
+.ladder div.ok { border-color: var(--ok); color: var(--text); }
+.ladder b { font-family: var(--f-data); display: block; color: inherit; }
+.btn { display: inline-block; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); padding: 9px 16px; font: inherit; font-weight: 600; letter-spacing: .04em; cursor: pointer; text-decoration: none; }
+.btn:hover { border-color: #34525d; }
+.btn.primary { background: #5865f2; border-color: #5865f2; color: #fff; }
+.key { font-family: var(--f-data); background: var(--bg); border: 1px solid var(--line); padding: 10px; overflow-wrap: anywhere; margin: 10px 0; font-size: 14px; }
+table { width: 100%; border-collapse: collapse; font-family: var(--f-data); font-size: 13.5px; }
+th { text-align: left; font-family: var(--f-ui); color: var(--muted); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.tablewrap { overflow-x: auto; }
+p { line-height: 1.5; margin: 0 0 10px; } .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>AIR<span>WAVE</span></h1>
+  <nav><a href="/">Scope</a><a href="/map">Live map</a><a href="/me" class="on">Member</a><a href="/admin" id="adminLink" hidden>Admin</a></nav>
+  <span class="grow"></span>
+  <span id="headRight"></span>
+</header>
+<main id="main"><section><p class="muted">Loading…</p></section></main>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const hrs = m => (m / 60).toFixed(m < 600 ? 1 : 0);
+  const POS = [['S1', 'Delivery and Ground'], ['S2', 'Tower'], ['S3', 'Approach, Departure, Arrival'], ['C1', 'Area control (CTR)'], ['I1', 'Instructor']];
+  fetch('/api/me').then(r => r.json()).then(d => {
+    if (!d.accounts) { $('main').innerHTML = '<section><h2>Member accounts</h2><p>Member accounts are not switched on for this server yet.</p><p class="muted">The server admin sets DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, PUBLIC_URL and DATABASE_URL.</p></section>'; return; }
+    if (!d.member) {
+      $('main').innerHTML = '<section><h2>Sign in</h2><p>Sign in with your Discord account to control, keep a logbook of your flights and ATC sessions, and use your rating.</p>' +
+        (d.discord ? '<a class="btn primary" href="/auth/discord?next=/me">Sign in with Discord</a>' : '') +
+        (d.dev ? ' <a class="btn" href="/auth/dev?name=Test%20Pilot&id=1">Test sign-in (dev)</a>' : '') + '</section>';
+      return;
+    }
+    const m = d.member, s = d.stats;
+    if (['mentor', 'supervisor', 'admin'].includes(m.role)) $('adminLink').hidden = false;
+    $('headRight').innerHTML = '<a class="btn" href="/auth/logout">Sign out</a>';
+    const banned = m.bannedUntil && new Date(m.bannedUntil) > new Date();
+    $('main').innerHTML =
+      '<section><div class="who">' + (m.avatar ? '<img src="' + esc(m.avatar) + '" alt="">' : '<div class="ph"></div>') +
+      '<div><div class="name">' + esc(m.name) + '</div><div class="id">Airwave ID ' + m.id + ' · member since ' + esc(String(m.created).slice(0, 10)) + '</div></div>' +
+      '<span class="grow"></span><span class="badge">ATC ' + esc(m.rating) + '</span>' + (m.role !== 'member' ? '<span class="badge role">' + esc(m.role) + '</span>' : '') +
+      (banned ? '<span class="badge bad">banned until ' + esc(String(m.bannedUntil).slice(0, 16).replace('T', ' ')) + 'Z</span>' : '') + '</div></section>' +
+      '<section><h2>Your time on Airwave</h2><div class="stats">' +
+      '<div class="stat"><b>' + hrs(s.pilotMinutes) + '</b><span>Hours flying</span></div><div class="stat"><b>' + s.flights + '</b><span>Flights</span></div>' +
+      '<div class="stat"><b>' + hrs(s.atcMinutes) + '</b><span>Hours controlling</span></div><div class="stat"><b>' + s.atcSessions + '</b><span>ATC sessions</span></div></div></section>' +
+      '<section><h2>What you can control</h2><div class="ladder">' + POS.map(([r, what], i) => '<div class="' + (m.atcRating >= i + 1 ? 'ok' : '') + '"><b>' + r + '</b>' + esc(what) + '</div>').join('') + '</div>' +
+      '<p class="muted" style="margin-top:12px">Everyone can log on as observer. Ratings are given by mentors and admins after training.</p></section>' +
+      '<section><h2>Airwave Pilot</h2><p>In Airwave Pilot, click <b>Sign in with Discord</b>; it links itself to your account. On another computer, or if that does not work, create a key and paste it into Airwave Pilot.</p>' +
+      '<button class="btn" id="keyBtn">Create a connection key</button><div id="keyOut"></div></section>' +
+      '<section><h2>Logbook</h2>' + (d.logbook.length ? '<div class="tablewrap"><table><thead><tr><th>Date</th><th>Callsign</th><th>Type</th><th>Route / position</th><th>Time</th></tr></thead><tbody>' +
+        d.logbook.map(e => '<tr><td>' + esc(String(e.started).slice(0, 16).replace('T', ' ')) + '</td><td>' + esc(e.callsign) + '</td><td>' + (e.kind === 'atc' ? 'ATC' : esc(e.aircraft || '')) + '</td><td>' +
+          esc(e.kind === 'atc' ? e.position : (e.dep || '?') + ' → ' + (e.arr || '?')) + '</td><td>' + Math.floor(e.minutes / 60) + ':' + String(e.minutes % 60).padStart(2, '0') + '</td></tr>').join('') + '</tbody></table></div>'
+        : '<p class="muted">Flights and ATC sessions of two minutes or more appear here.</p>') + '</section>';
+    $('keyBtn').onclick = () => fetch('/api/me/key', { method: 'POST' }).then(r => r.json()).then(k => {
+      $('keyOut').innerHTML = k.key ? '<div class="key">' + esc(k.key) + '</div><p class="muted">Paste it into Airwave Pilot (Sign in, then "Use a key"). It is shown only once; creating a new one replaces it.</p>' : '<p>' + esc(k.error) + '</p>';
+    });
+  }).catch(() => { $('main').innerHTML = '<section><p>Could not reach the server.</p></section>'; });
+})();
+</script>
+</body>
+</html>

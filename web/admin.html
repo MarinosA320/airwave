@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Airwave · Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+:root { --bg: #0b1215; --panel: #11191d; --panel-2: #172227; --line: #24333a; --text: #d6e2e5; --muted: #7d939a; --mine: #7fd4f0; --amber: #f0bf4f; --alert: #ff6a5a; --ok: #72d39d;
+  --f-ui: 'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif; --f-data: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--f-ui); font-size: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { margin: 0; font-size: 21px; letter-spacing: .14em; } header h1 span { color: var(--mine); }
+nav { display: flex; gap: 16px; } nav a { color: var(--muted); text-decoration: none; } nav a.on, nav a:hover { color: var(--text); }
+main { max-width: 1180px; margin: 0 auto; padding: 22px 20px 60px; display: grid; gap: 18px; }
+section { background: var(--panel); border: 1px solid var(--line); padding: 18px 20px; }
+h2 { margin: 0 0 12px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 10px; }
+input, select, button { font: inherit; color: var(--text); }
+.search { background: var(--panel-2); border: 1px solid var(--line); padding: 8px 10px; width: min(360px, 100%); font-family: var(--f-data); font-size: 14px; }
+.btn { background: var(--panel-2); border: 1px solid var(--line); padding: 5px 10px; cursor: pointer; font-weight: 600; }
+.btn:hover { border-color: #34525d; } .btn.danger { color: var(--alert); border-color: #5a2a26; } .btn.ok { color: var(--ok); }
+table { width: 100%; border-collapse: collapse; font-family: var(--f-data); font-size: 13.5px; }
+th { text-align: left; font-family: var(--f-ui); color: var(--muted); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+td select { background: var(--panel-2); border: 1px solid var(--line); padding: 4px 6px; font-family: var(--f-data); font-size: 13px; }
+.tablewrap { overflow-x: auto; }
+.on { color: var(--ok); } .bad { color: var(--alert); } .muted { color: var(--muted); }
+.banrow td { background: var(--panel-2); }
+.banrow input { background: var(--bg); border: 1px solid var(--line); padding: 5px 8px; font-family: var(--f-data); font-size: 13px; }
+.toast { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); padding: 10px 16px; }
+.toast.err { border-color: var(--alert); } .toast.okk { border-color: var(--ok); }
+p { line-height: 1.5; margin: 0 0 8px; }
+</style>
+</head>
+<body>
+<header><h1>AIR<span>WAVE</span></h1><nav><a href="/">Scope</a><a href="/map">Live map</a><a href="/me">Member</a><a href="/admin" class="on">Admin</a></nav></header>
+<main>
+  <section>
+    <h2><span>Members</span><span id="count"></span></h2>
+    <input class="search" id="q" placeholder="Search by name or Airwave ID" spellcheck="false">
+    <p class="muted" id="perm" style="margin-top:10px"></p>
+    <div class="tablewrap"><table><thead><tr><th>ID</th><th>Name</th><th>ATC rating</th><th>Role</th><th>Status</th><th>Last seen</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+  </section>
+  <section><h2>Audit trail</h2><div class="tablewrap"><table><thead><tr><th>When</th><th>By</th><th>Action</th><th>Member</th><th>Details</th></tr></thead><tbody id="audit"></tbody></table></div></section>
+</main>
+<div class="toast" id="toast" hidden></div>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let me = null, data = null, banOpen = null, timer = null;
+  function toast(t, ok) { const e = $('toast'); e.textContent = t; e.className = 'toast ' + (ok ? 'okk' : 'err'); e.hidden = false; setTimeout(() => { e.hidden = true; }, 4000); }
+  function load() {
+    fetch('/api/admin/members?q=' + encodeURIComponent($('q').value.trim())).then(r => r.json()).then(d => {
+      if (d.error) { document.querySelector('main').innerHTML = '<section><p>' + esc(d.error) + ' <a style="color:#7fd4f0" href="/me">Sign in</a></p></section>'; return; }
+      data = d; me = d.me; render();
+    });
+    fetch('/api/admin/audit').then(r => r.json()).then(d => {
+      if (!d.audit) return;
+      $('audit').innerHTML = d.audit.map(a => '<tr><td>' + esc(String(a.at).slice(0, 16).replace('T', ' ')) + '</td><td>' + esc(a.actor) + '</td><td>' + esc(a.action) + '</td><td>' + esc(a.target) + '</td><td>' + esc(a.details) + '</td></tr>').join('') || '<tr><td colspan="5" class="muted">Nothing yet.</td></tr>';
+    });
+  }
+  function render() {
+    const isAdmin = me.role === 'admin', isSup = isAdmin || me.role === 'supervisor', isMentor = me.role === 'mentor';
+    $('perm').textContent = isAdmin ? 'As admin you can change ratings, roles and bans.' : isSup ? 'As supervisor you can ban and unban. Ratings are set by mentors and admins.' : 'As mentor you can give ratings up to S3.';
+    $('count').textContent = data.total + ' members';
+    $('rows').innerHTML = data.members.map(m => {
+      const banned = m.bannedUntil && new Date(m.bannedUntil) > new Date();
+      const canRate = isAdmin || (isMentor && m.atcRating <= 3);
+      const ratingSel = '<select data-id="' + m.id + '" data-f="atcRating"' + (canRate ? '' : ' disabled') + '>' + data.ratings.map((r, i) => '<option value="' + i + '"' + (i === m.atcRating ? ' selected' : '') + (isMentor && i > 3 ? ' disabled' : '') + '>' + r + '</option>').join('') + '</select>';
+      const roleSel = '<select data-id="' + m.id + '" data-f="role"' + (isAdmin ? '' : ' disabled') + '>' + data.roles.map(r => '<option' + (r === m.role ? ' selected' : '') + '>' + r + '</option>').join('') + '</select>';
+      const status = banned ? '<span class="bad">banned until ' + esc(String(m.bannedUntil).slice(0, 16).replace('T', ' ')) + 'Z</span><br><span class="muted">' + esc(m.banReason) + '</span>' : m.online ? '<span class="on">online as ' + esc(m.online) + '</span>' : '<span class="muted">offline</span>';
+      const act = !isSup || m.id === me.id ? '' : banned ? '<button class="btn ok" data-unban="' + m.id + '">Unban</button>' : '<button class="btn danger" data-ban="' + m.id + '">Ban…</button>';
+      return '<tr><td>' + m.id + '</td><td>' + esc(m.name) + '</td><td>' + ratingSel + '</td><td>' + roleSel + '</td><td>' + status + '</td><td>' + esc(m.lastSeen ? String(m.lastSeen).slice(0, 16).replace('T', ' ') : '—') + '</td><td>' + act + '</td></tr>' +
+        (banOpen === m.id ? '<tr class="banrow"><td colspan="7">Ban for <input id="banDays" value="7" size="4" inputmode="decimal"> days, reason <input id="banReason" size="40" maxlength="200" placeholder="what happened"> <button class="btn danger" data-doban="' + m.id + '">Ban</button> <button class="btn" data-cancel>Cancel</button></td></tr>' : '');
+    }).join('') || '<tr><td colspan="7" class="muted">No members found.</td></tr>';
+  }
+  function edit(body) {
+    return fetch('/api/admin/member', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()).then(r => {
+      if (r.error) toast(r.error); else toast('Saved.', true);
+      load();
+    });
+  }
+  $('rows').addEventListener('change', e => {
+    const s = e.target.closest('select'); if (!s) return;
+    edit({ id: Number(s.dataset.id), [s.dataset.f]: s.dataset.f === 'atcRating' ? Number(s.value) : s.value });
+  });
+  $('rows').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.ban) { banOpen = Number(b.dataset.ban); render(); $('banReason').focus(); }
+    if (b.dataset.cancel != null) { banOpen = null; render(); }
+    if (b.dataset.doban) { const reason = $('banReason').value.trim(); if (!reason) return toast('Give a reason.'); banOpen = null; edit({ id: Number(b.dataset.doban), ban: { days: Number($('banDays').value), reason } }); }
+    if (b.dataset.unban) edit({ id: Number(b.dataset.unban), unban: true });
+  });
+  $('q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(load, 250); });
+  load();
+})();
+</script>
+</body>
+</html>
